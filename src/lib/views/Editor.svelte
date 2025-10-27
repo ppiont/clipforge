@@ -38,18 +38,18 @@
   }
 </script>
 
-<div class="editor-container">
+<div class="flex flex-col w-full h-full bg-background">
   <TopBar
     onImportClick={handleImportClick}
     onRecordClick={handleRecordClick}
     onExportClick={handleExportClick}
   />
 
-  <div class="main-area">
-    <div class="preview-section">
+  <div class="flex flex-1 overflow-hidden">
+    <div class="flex-1 flex items-center justify-center bg-black p-2">
       <Preview bind:videoElement={videoElement} />
     </div>
-    <div class="library-section">
+    <div class="flex-shrink-0 w-[300px] flex flex-col">
       <MediaLibrary />
     </div>
   </div>
@@ -60,39 +60,3 @@
 
   <ExportModal bind:show={showExportModal} />
 </div>
-
-<style>
-  .editor-container {
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-    height: 100%;
-    background: #fff;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-      'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
-  }
-
-  .main-area {
-    display: flex;
-    flex: 1;
-    min-height: 600px;
-    overflow: hidden;
-  }
-
-  .preview-section {
-    flex: 2;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: #000;
-    padding: 10px;
-  }
-
-  .library-section {
-    flex: 1;
-    min-width: 250px;
-    display: flex;
-    flex-direction: column;
-    background: #fafafa;
-  }
-</style>

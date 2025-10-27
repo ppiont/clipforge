@@ -87,7 +87,7 @@
   }
 </script>
 
-<div class="preview-container">
+<div class="relative w-full h-full bg-black rounded overflow-hidden flex items-center justify-center aspect-video">
   {#if displayClip}
     <video
       bind:this={videoElement}
@@ -98,60 +98,16 @@
       on:pause={onPause}
       width="640"
       height="360"
+      class="w-full h-full object-contain"
       controls
     />
-    <div class="time-display">
+    <div class="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded font-mono">
       {formatTime(currentTime)} / {formatTime(duration)}
     </div>
   {:else}
-    <div class="placeholder">
-      <p>No clip selected</p>
-      <p style="font-size: 12px; color: #999;">Select a clip from the media library to preview</p>
+    <div class="flex flex-col items-center justify-center w-full h-full text-gray-500 text-center">
+      <p class="text-sm">No clip selected</p>
+      <p class="text-xs text-gray-400 mt-1">Select a clip from the media library to preview</p>
     </div>
   {/if}
 </div>
-
-<style>
-  .preview-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    background: #000;
-    width: 100%;
-    height: 100%;
-    aspect-ratio: 16 / 9;
-    position: relative;
-    border-radius: 4px;
-    overflow: hidden;
-  }
-
-  video {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-  }
-
-  .placeholder {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    height: 100%;
-    color: #666;
-    text-align: center;
-  }
-
-  .time-display {
-    position: absolute;
-    bottom: 10px;
-    right: 10px;
-    color: #fff;
-    background: rgba(0, 0, 0, 0.7);
-    padding: 5px 10px;
-    border-radius: 4px;
-    font-size: 12px;
-    font-family: monospace;
-  }
-</style>

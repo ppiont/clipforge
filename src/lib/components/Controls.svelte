@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { playbackStore } from '../stores/playback.js';
+  import { Button } from "$lib/components/ui/button";
 
   /**
    * Controls Component
@@ -49,102 +50,39 @@
   });
 </script>
 
-<div class="controls">
-  <div class="playback-controls">
-    <button
-      class="play-button"
+<footer class="flex items-center gap-3 h-[50px] px-4 bg-background border-t">
+  <div class="flex gap-2">
+    <Button
+      variant="default"
+      size="sm"
       on:click={togglePlayPause}
       title="Play/Pause (Space)"
     >
       {$playbackStore.isPlaying ? '⏸ Pause' : '▶ Play'}
-    </button>
+    </Button>
 
-    <button on:click={handleStop} title="Stop">
+    <Button
+      variant="outline"
+      size="sm"
+      on:click={handleStop}
+      title="Stop"
+    >
       ⏹ Stop
-    </button>
+    </Button>
   </div>
 
-  <div class="editing-controls">
-    <button title="Split clip (Coming soon)" disabled>
+  <div class="flex gap-2">
+    <Button variant="outline" size="sm" disabled title="Split clip (Coming soon)">
       ✂ Split
-    </button>
-    <button title="Delete clip (Coming soon)" disabled>
+    </Button>
+    <Button variant="outline" size="sm" disabled title="Delete clip (Coming soon)">
       🗑 Delete
-    </button>
+    </Button>
   </div>
 
-  <div class="spacer"></div>
+  <div class="flex-1"></div>
 
-  <div class="info">
-    <span class="state-label">
-      {$playbackStore.isPlaying ? '▶ Playing' : '⏸ Paused'}
-    </span>
+  <div class="text-xs text-muted-foreground">
+    {$playbackStore.isPlaying ? '▶ Playing' : '⏸ Paused'}
   </div>
-</div>
-
-<style>
-  .controls {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    height: 50px;
-    padding: 0 15px;
-    background: #f5f5f5;
-    border-top: 1px solid #ddd;
-  }
-
-  .playback-controls,
-  .editing-controls {
-    display: flex;
-    gap: 5px;
-  }
-
-  button {
-    padding: 8px 12px;
-    background: #fff;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 13px;
-    transition: all 0.2s;
-  }
-
-  button:hover:not(:disabled) {
-    background: #f0f0f0;
-    border-color: #999;
-  }
-
-  button:active:not(:disabled) {
-    background: #e0e0e0;
-  }
-
-  button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .play-button {
-    font-weight: 600;
-    color: #1976d2;
-    border-color: #1976d2;
-  }
-
-  .play-button:hover:not(:disabled) {
-    background: #e3f2fd;
-  }
-
-  .spacer {
-    flex: 1;
-  }
-
-  .info {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .state-label {
-    font-size: 12px;
-    color: #666;
-  }
-</style>
+</footer>

@@ -1,6 +1,9 @@
 <script>
   import { clipsStore } from '../stores/clips.js';
   import { playbackStore } from '../stores/playback.js';
+  import { Card } from "$lib/components/ui/card";
+  import { Badge } from "$lib/components/ui/badge";
+  import { ScrollArea } from "$lib/components/ui/scroll-area";
 
   /**
    * MediaLibrary Component
@@ -37,157 +40,49 @@
   }
 </script>
 
-<div class="media-library">
-  <div class="header">
-    <h3>Media Library</h3>
-    <span class="count">{$clipsStore.length}</span>
+<div class="flex flex-col h-full border-l">
+  <div class="px-4 py-3 border-b bg-muted">
+    <div class="flex items-center justify-between">
+      <h3 class="text-sm font-semibold">Media Library</h3>
+      <Badge variant="secondary">{$clipsStore.length}</Badge>
+    </div>
   </div>
 
-  <div class="clips-container">
-    {#each $clipsStore as clip (clip.id)}
-      <div
-        class="clip-item"
-        class:selected={$playbackStore.selectedClipId === clip.id}
-        draggable="true"
-        on:click={() => selectClip(clip.id)}
-        on:dragstart={(e) => handleDragStart(e, clip)}
-      >
-        <div class="clip-thumbnail">
-          <div class="video-icon">🎬</div>
-        </div>
-        <div class="clip-info">
-          <div class="filename">{clip.filename}</div>
-          <div class="metadata">
-            {formatTime(clip.duration)} • {clip.resolution}
+  <ScrollArea class="flex-1">
+    <div class="p-3 space-y-2">
+      {#each $clipsStore as clip (clip.id)}
+        <Card
+          class={`p-3 cursor-pointer transition-all hover:shadow-md ${
+            $playbackStore.selectedClipId === clip.id
+              ? 'ring-2 ring-primary bg-primary/5'
+              : 'hover:bg-muted'
+          }`}
+          draggable="true"
+          on:click={() => selectClip(clip.id)}
+          on:dragstart={(e) => handleDragStart(e, clip)}
+          role="button"
+          tabindex="0"
+        >
+          <div class="flex gap-3">
+            <div class="flex-shrink-0 w-10 h-10 bg-muted rounded flex items-center justify-center text-lg">
+              🎬
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-medium truncate">{clip.filename}</p>
+              <p class="text-xs text-muted-foreground">
+                {formatTime(clip.duration)} • {clip.resolution}
+              </p>
+            </div>
           </div>
+        </Card>
+      {/each}
+
+      {#if $clipsStore.length === 0}
+        <div class="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
+          <p class="text-sm">No clips imported yet</p>
+          <p class="text-xs mt-1">Click Import to add videos</p>
         </div>
-      </div>
-    {/each}
-
-    {#if $clipsStore.length === 0}
-      <div class="empty-state">
-        <p>No clips imported yet</p>
-        <p style="font-size: 12px; color: #999;">Click Import to add videos</p>
-      </div>
-    {/if}
-  </div>
+      {/if}
+    </div>
+  </ScrollArea>
 </div>
-
-<style>
-  .media-library {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    background: #fafafa;
-    border-left: 1px solid #ddd;
-    overflow: hidden;
-  }
-
-  .header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px 15px;
-    border-bottom: 1px solid #ddd;
-    background: #f5f5f5;
-  }
-
-  .header h3 {
-    margin: 0;
-    font-size: 14px;
-    font-weight: 600;
-    color: #333;
-  }
-
-  .count {
-    font-size: 12px;
-    color: #999;
-    background: #e0e0e0;
-    padding: 2px 8px;
-    border-radius: 12px;
-  }
-
-  .clips-container {
-    flex: 1;
-    overflow-y: auto;
-    padding: 10px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .clip-item {
-    display: flex;
-    gap: 10px;
-    padding: 10px;
-    background: #fff;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all 0.2s;
-    user-select: none;
-  }
-
-  .clip-item:hover {
-    background: #f8f8f8;
-    border-color: #999;
-  }
-
-  .clip-item.selected {
-    background: #e3f2fd;
-    border-color: #1976d2;
-    box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.1);
-  }
-
-  .clip-thumbnail {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-    background: #e0e0e0;
-    border-radius: 4px;
-    flex-shrink: 0;
-  }
-
-  .video-icon {
-    font-size: 20px;
-  }
-
-  .clip-info {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    flex: 1;
-    min-width: 0;
-  }
-
-  .filename {
-    font-size: 13px;
-    font-weight: 500;
-    color: #333;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .metadata {
-    font-size: 11px;
-    color: #999;
-    margin-top: 2px;
-  }
-
-  .empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    color: #999;
-    text-align: center;
-  }
-
-  .empty-state p {
-    margin: 5px 0;
-  }
-</style>

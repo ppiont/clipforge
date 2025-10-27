@@ -1,4 +1,16 @@
 <script>
+  import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter
+  } from "$lib/components/ui/dialog";
+  import { Button } from "$lib/components/ui/button";
+  import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "$lib/components/ui/select";
+  import { Progress } from "$lib/components/ui/progress";
+
   /**
    * ExportModal Component
    * Modal dialog for exporting video
@@ -7,134 +19,54 @@
 
   export let show = false;
   export let onClose = () => {};
+
+  let resolution = "Source";
+  let isExporting = false;
+  let progress = 0;
 </script>
 
-{#if show}
-  <!-- svelte-ignore a11y_click_events_have_key_events -->
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="modal-overlay" on:click={onClose} role="presentation">
-    <div class="modal" on:click|stopPropagation role="dialog" aria-modal="true">
-      <div class="modal-header">
-        <h2>Export Video</h2>
-        <button class="close-btn" on:click={onClose}>✕</button>
-      </div>
+<Dialog open={show} onOpenChange={onClose}>
+  <DialogContent class="sm:max-w-[500px]">
+    <DialogHeader>
+      <DialogTitle>Export Video</DialogTitle>
+      <DialogDescription>
+        Configure and export your video composition
+      </DialogDescription>
+    </DialogHeader>
 
-      <div class="modal-content">
-        <p style="color: #999; text-align: center;">
-          Export functionality coming soon (Task 6.2)
-        </p>
-      </div>
-
-      <div class="modal-footer">
-        <button class="cancel-btn" on:click={onClose}>Cancel</button>
-        <button class="primary-btn" disabled>Export</button>
-      </div>
+    <div class="space-y-4 py-4">
+      {#if !isExporting}
+        <div class="space-y-2">
+          <label for="resolution" class="text-sm font-medium">Resolution</label>
+          <Select bind:value={resolution}>
+            <SelectTrigger id="resolution">
+              <SelectValue placeholder="Select resolution" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Source">Source</SelectItem>
+              <SelectItem value="720p">720p</SelectItem>
+              <SelectItem value="1080p">1080p</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      {:else}
+        <div class="space-y-2">
+          <div class="flex items-center justify-between text-sm">
+            <span>Exporting...</span>
+            <span class="font-medium">{progress}%</span>
+          </div>
+          <Progress value={progress} class="w-full" />
+        </div>
+      {/if}
     </div>
-  </div>
-{/if}
 
-<style>
-  .modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-  }
-
-  .modal {
-    background: white;
-    border-radius: 8px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-    width: 90%;
-    max-width: 500px;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 20px;
-    border-bottom: 1px solid #ddd;
-    background: #f5f5f5;
-  }
-
-  .modal-header h2 {
-    margin: 0;
-    font-size: 18px;
-    color: #333;
-  }
-
-  .close-btn {
-    background: none;
-    border: none;
-    font-size: 20px;
-    color: #666;
-    cursor: pointer;
-    padding: 0;
-    width: 30px;
-    height: 30px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .close-btn:hover {
-    color: #333;
-  }
-
-  .modal-content {
-    padding: 30px;
-    flex: 1;
-  }
-
-  .modal-footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-    padding: 15px 20px;
-    border-top: 1px solid #ddd;
-    background: #f5f5f5;
-  }
-
-  button {
-    padding: 8px 16px;
-    border-radius: 4px;
-    border: none;
-    cursor: pointer;
-    font-size: 14px;
-    transition: all 0.2s;
-  }
-
-  .cancel-btn {
-    background: #fff;
-    border: 1px solid #ddd;
-    color: #333;
-  }
-
-  .cancel-btn:hover {
-    background: #f0f0f0;
-  }
-
-  .primary-btn {
-    background: #1976d2;
-    color: white;
-  }
-
-  .primary-btn:hover:not(:disabled) {
-    background: #1565c0;
-  }
-
-  .primary-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-</style>
+    <DialogFooter>
+      <Button variant="outline" on:click={onClose} disabled={isExporting}>
+        Cancel
+      </Button>
+      <Button disabled={isExporting || !show}>
+        {isExporting ? 'Exporting...' : 'Export'}
+      </Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>

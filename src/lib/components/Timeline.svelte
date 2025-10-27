@@ -2,6 +2,8 @@
   import { timelineStore } from '../stores/timeline.js';
   import { playbackStore } from '../stores/playback.js';
   import { clipsStore } from '../stores/clips.js';
+  import { Button } from "$lib/components/ui/button";
+  import { Separator } from "$lib/components/ui/separator";
 
   /**
    * Timeline Component
@@ -122,20 +124,28 @@
   }
 </script>
 
-<div class="timeline-wrapper">
-  <div class="timeline-controls">
-    <button on:click={zoom_out} title="Zoom out">−</button>
-    <button on:click={zoom_reset} title="Reset zoom">Reset</button>
-    <button on:click={zoom_in} title="Zoom in">+</button>
-    <span class="zoom-label">{Math.round(zoom / 100 * 100)}%</span>
+<div class="flex flex-col h-[150px] border-t bg-background">
+  <!-- Timeline Controls -->
+  <div class="flex items-center gap-2 px-3 py-2 bg-muted border-b h-9">
+    <Button variant="ghost" size="sm" on:click={zoom_out} title="Zoom out" class="h-7 w-7 p-0">
+      −
+    </Button>
+    <Button variant="ghost" size="sm" on:click={zoom_reset} title="Reset zoom" class="h-7 px-2">
+      Reset
+    </Button>
+    <Button variant="ghost" size="sm" on:click={zoom_in} title="Zoom in" class="h-7 w-7 p-0">
+      +
+    </Button>
+    <span class="text-xs text-muted-foreground ml-2 min-w-[30px]">{Math.round(zoom / 100 * 100)}%</span>
   </div>
 
-  <div class="timeline-container">
+  <!-- Timeline Container -->
+  <div class="flex flex-col flex-1 bg-card border-t">
     <!-- Time Ruler -->
-    <div class="time-ruler">
-      <div class="ruler-content" style="width: {timelineWidth}px">
+    <div class="relative h-6 bg-muted border-b overflow-hidden">
+      <div style="width: {timelineWidth}px" class="relative h-full">
         {#each getTimeMarkers($timelineStore.duration) as time}
-          <div class="marker" style="left: {time * zoom}px">
+          <div style="left: {time * zoom}px" class="absolute text-[10px] text-muted-foreground border-l border-muted-foreground h-full pt-0.5">
             {formatTime(time)}
           </div>
         {/each}
@@ -143,35 +153,44 @@
     </div>
 
     <!-- Timeline Tracks -->
-    <div bind:this={timelineElement} class="timeline-body">
-      <div class="timeline-scroll" style="width: {timelineWidth}px; position: relative;">
+    <div bind:this={timelineElement} class="flex-1 overflow-x-auto overflow-y-hidden relative">
+      <div style="width: {timelineWidth}px; position: relative;" class="flex flex-col">
         <!-- Playhead -->
         <div
-          class="playhead"
+          class="absolute w-0.5 h-full bg-red-500 shadow-md z-50"
           style="left: {playheadPosition}px"
           title={formatTime($playbackStore.currentTime)}
         />
 
         <!-- Track 1 (Main Video) -->
         <div
-          class="track"
+          class="flex-1 relative border-b hover:bg-muted/50 transition-colors cursor-pointer"
           on:click={(e) => handleTimelineClick(e, 0)}
           on:drop={(e) => handleDrop(e, 0)}
           on:dragover={handleDragOver}
+          role="button"
+          tabindex="0"
         >
-          <div class="track-label">Track 1 (Main)</div>
-          <div class="clips-area">
+          <div class="absolute left-0 top-0 w-[120px] px-2 py-1 bg-muted border-r border-b text-xs font-semibold text-muted-foreground whitespace-nowrap z-40">
+            Track 1 (Main)
+          </div>
+          <div class="relative ml-[120px] py-0.5">
             {#each getClipsForTrack(0) as timelineClip (timelineClip.id)}
               <div
-                class="timeline-clip"
-                class:selected={$playbackStore.selectedTimelineClipId === timelineClip.id}
+                class={`absolute top-1 h-7 bg-green-600 text-white text-xs px-2 rounded flex items-center cursor-pointer select-none overflow-hidden transition-all hover:brightness-110 ${
+                  $playbackStore.selectedTimelineClipId === timelineClip.id
+                    ? 'ring-2 ring-primary shadow-md bg-primary'
+                    : ''
+                }`}
                 style="
                   left: {timelineClip.startTime * zoom}px;
                   width: {(timelineClip.trimEnd - timelineClip.trimStart) * zoom}px;
                 "
                 on:click={() => selectTimelineClip(timelineClip.id)}
+                role="button"
+                tabindex="0"
               >
-                <span class="clip-text">
+                <span class="truncate text-xs">
                   {getClipFilename(timelineClip.clipId)}
                 </span>
               </div>
@@ -181,24 +200,33 @@
 
         <!-- Track 2 (Overlay/PiP) -->
         <div
-          class="track"
+          class="flex-1 relative hover:bg-muted/50 transition-colors cursor-pointer"
           on:click={(e) => handleTimelineClick(e, 1)}
           on:drop={(e) => handleDrop(e, 1)}
           on:dragover={handleDragOver}
+          role="button"
+          tabindex="0"
         >
-          <div class="track-label">Track 2 (Overlay)</div>
-          <div class="clips-area">
+          <div class="absolute left-0 top-0 w-[120px] px-2 py-1 bg-muted border-r text-xs font-semibold text-muted-foreground whitespace-nowrap z-40">
+            Track 2 (Overlay)
+          </div>
+          <div class="relative ml-[120px] py-0.5">
             {#each getClipsForTrack(1) as timelineClip (timelineClip.id)}
               <div
-                class="timeline-clip overlay"
-                class:selected={$playbackStore.selectedTimelineClipId === timelineClip.id}
+                class={`absolute top-1 h-7 bg-orange-600 text-white text-xs px-2 rounded flex items-center cursor-pointer select-none overflow-hidden transition-all hover:brightness-110 ${
+                  $playbackStore.selectedTimelineClipId === timelineClip.id
+                    ? 'ring-2 ring-primary shadow-md bg-primary'
+                    : ''
+                }`}
                 style="
                   left: {timelineClip.startTime * zoom}px;
                   width: {(timelineClip.trimEnd - timelineClip.trimStart) * zoom}px;
                 "
                 on:click={() => selectTimelineClip(timelineClip.id)}
+                role="button"
+                tabindex="0"
               >
-                <span class="clip-text">
+                <span class="truncate text-xs">
                   {getClipFilename(timelineClip.clipId)}
                 </span>
               </div>
@@ -209,172 +237,3 @@
     </div>
   </div>
 </div>
-
-<style>
-  .timeline-wrapper {
-    display: flex;
-    flex-direction: column;
-    height: 150px;
-    background: #fafafa;
-    border-top: 1px solid #ddd;
-  }
-
-  .timeline-controls {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    padding: 5px 10px;
-    background: #f5f5f5;
-    border-bottom: 1px solid #ddd;
-    height: 35px;
-  }
-
-  .timeline-controls button {
-    padding: 4px 8px;
-    font-size: 12px;
-    background: #fff;
-    border: 1px solid #ddd;
-    border-radius: 3px;
-    cursor: pointer;
-  }
-
-  .timeline-controls button:hover {
-    background: #f0f0f0;
-  }
-
-  .zoom-label {
-    font-size: 11px;
-    color: #666;
-    margin-left: 5px;
-    min-width: 30px;
-  }
-
-  .timeline-container {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    background: #fff;
-    border-top: 1px solid #ddd;
-  }
-
-  .time-ruler {
-    height: 25px;
-    background: #f0f0f0;
-    border-bottom: 1px solid #ddd;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .ruler-content {
-    position: relative;
-    height: 100%;
-  }
-
-  .marker {
-    position: absolute;
-    font-size: 10px;
-    color: #666;
-    padding: 3px 0 0 0;
-    border-left: 1px solid #ddd;
-    height: 100%;
-  }
-
-  .timeline-body {
-    flex: 1;
-    overflow-x: auto;
-    overflow-y: hidden;
-    position: relative;
-  }
-
-  .timeline-scroll {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .playhead {
-    position: absolute;
-    width: 2px;
-    height: 100%;
-    background: #ff4444;
-    z-index: 100;
-    box-shadow: 0 0 4px rgba(255, 68, 68, 0.5);
-    top: 0;
-  }
-
-  .track {
-    flex: 1;
-    position: relative;
-    border-bottom: 1px solid #ddd;
-    background: #fafafa;
-    display: flex;
-    align-items: stretch;
-  }
-
-  .track-label {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 120px;
-    padding: 5px 8px;
-    font-size: 11px;
-    font-weight: 600;
-    color: #666;
-    background: #f5f5f5;
-    border-right: 1px solid #ddd;
-    white-space: nowrap;
-    z-index: 50;
-  }
-
-  .clips-area {
-    position: relative;
-    flex: 1;
-    margin-left: 120px;
-    padding: 2px 0;
-  }
-
-  .timeline-clip {
-    position: absolute;
-    top: 3px;
-    height: calc(100% - 6px);
-    background: #4CAF50;
-    color: white;
-    padding: 4px 6px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid #388e3c;
-    border-radius: 2px;
-    cursor: pointer;
-    user-select: none;
-    overflow: hidden;
-    transition: all 0.1s;
-  }
-
-  .timeline-clip:hover {
-    filter: brightness(1.1);
-  }
-
-  .timeline-clip.selected {
-    border: 2px solid #fff;
-    box-shadow: 0 0 0 1px #1976d2;
-    background: #1976d2;
-  }
-
-  .timeline-clip.overlay {
-    background: #ff9800;
-    border-color: #e65100;
-  }
-
-  .timeline-clip.overlay.selected {
-    background: #ff6f00;
-    box-shadow: 0 0 0 1px #ff6f00;
-  }
-
-  .clip-text {
-    font-size: 11px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-</style>
