@@ -9,9 +9,7 @@ fn greet(name: &str) -> String {
 /// Opens a file picker dialog for video files
 /// Returns the selected file path or None if cancelled
 #[tauri::command]
-async fn pick_video_file(
-    window: tauri::Window,
-) -> Result<Option<PathBuf>, String> {
+async fn pick_video_file() -> Result<Option<PathBuf>, String> {
     use tauri::api::dialog;
 
     let file_path = dialog::FileDialogBuilder::new()

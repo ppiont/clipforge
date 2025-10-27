@@ -7,6 +7,7 @@
    * Playback controls and timeline editing buttons
    */
 
+  /** @type {HTMLVideoElement | null} */
   export let videoElement = null;
 
   function togglePlayPause() {
@@ -32,6 +33,7 @@
     }));
   }
 
+  /** @param {KeyboardEvent} e */
   function handleKeyPress(e) {
     if (e.code === 'Space') {
       e.preventDefault();
@@ -71,7 +73,7 @@
     </button>
   </div>
 
-  <div class="spacer" />
+  <div class="spacer"></div>
 
   <div class="info">
     <span class="state-label">

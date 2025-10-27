@@ -37,7 +37,7 @@
     padding: 0;
   }
 
-  :global(#svelte) {
+  :global(body > div) {
     width: 100%;
     height: 100%;
   }
