@@ -9,3 +9,24 @@ node_modules
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .human
+
+# Rust/Cargo
+/target
+src-tauri/target
+Cargo.lock
+**/*.rs.bk
+*.pdb
+.cargo/
+*.rlib
+*.rmeta
+
+# Build artifacts
+dist/
+build/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
