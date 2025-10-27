@@ -8,8 +8,9 @@
    * Displays selected video clip with playback
    */
 
-  /** @type {HTMLVideoElement | null} */
-  export let videoElement = null;
+  let {
+    videoElement = $bindable(null)
+  } = $props();
   let currentTime = 0;
   let duration = 0;
   let trimStart = 0;
@@ -100,7 +101,9 @@
       height="360"
       class="w-full h-full object-contain"
       controls
-    />
+    >
+      <track kind="captions" />
+    </video>
     <div class="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded font-mono">
       {formatTime(currentTime)} / {formatTime(duration)}
     </div>

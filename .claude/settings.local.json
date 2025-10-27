@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "mcp__GitKraken__git_status",
+      "mcp__GitKraken__git_add_or_commit",
+      "Bash(bun run check:*)",
+      "Bash(cargo clean:*)",
+      "mcp__GitKraken__git_branch",
+      "mcp__GitKraken__git_checkout"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

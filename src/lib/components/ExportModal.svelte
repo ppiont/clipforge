@@ -8,7 +8,7 @@
     DialogFooter
   } from "$lib/components/ui/dialog";
   import { Button } from "$lib/components/ui/button";
-  import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "$lib/components/ui/select";
+  import { Select, SelectContent, SelectItem, SelectTrigger } from "$lib/components/ui/select";
   import { Progress } from "$lib/components/ui/progress";
 
   /**
@@ -17,19 +17,21 @@
    * (Stub for Task 6.2)
    */
 
-  export let show = false;
-  export let onClose = () => {};
+  let {
+    show = $bindable(false),
+    onClose = () => {}
+  } = $props();
 
-  let resolution = "Source";
-  let isExporting = false;
-  let progress = 0;
+  let resolution = $state("Source");
+  let isExporting = $state(false);
+  let progress = $state(0);
 </script>
 
 <Dialog open={show} onOpenChange={onClose}>
-  <DialogContent class="sm:max-w-[500px]">
-    <DialogHeader>
-      <DialogTitle>Export Video</DialogTitle>
-      <DialogDescription>
+  <DialogContent class="sm:max-w-[500px]" portalProps={{}}>
+    <DialogHeader class="">
+      <DialogTitle class="">Export Video</DialogTitle>
+      <DialogDescription class="">
         Configure and export your video composition
       </DialogDescription>
     </DialogHeader>
@@ -39,13 +41,13 @@
         <div class="space-y-2">
           <label for="resolution" class="text-sm font-medium">Resolution</label>
           <Select bind:value={resolution}>
-            <SelectTrigger id="resolution">
-              <SelectValue placeholder="Select resolution" />
+            <SelectTrigger id="resolution" class="">
+              <span>{resolution || 'Select resolution'}</span>
             </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Source">Source</SelectItem>
-              <SelectItem value="720p">720p</SelectItem>
-              <SelectItem value="1080p">1080p</SelectItem>
+            <SelectContent class="" portalProps={{}}>
+              <SelectItem value="Source" label="">Source</SelectItem>
+              <SelectItem value="720p" label="">720p</SelectItem>
+              <SelectItem value="1080p" label="">1080p</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -60,11 +62,11 @@
       {/if}
     </div>
 
-    <DialogFooter>
-      <Button variant="outline" on:click={onClose} disabled={isExporting}>
+    <DialogFooter class="">
+      <Button variant="outline" on:click={onClose} disabled={isExporting} class="">
         Cancel
       </Button>
-      <Button disabled={isExporting || !show}>
+      <Button disabled={isExporting || !show} class="">
         {isExporting ? 'Exporting...' : 'Export'}
       </Button>
     </DialogFooter>

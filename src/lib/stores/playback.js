@@ -9,9 +9,11 @@ import { writable } from 'svelte/store';
  */
 
 /** @type {import('svelte/store').Writable<PlaybackState>} */
-export const playbackStore = writable({
-  isPlaying: false,
-  currentTime: 0,
-  selectedClipId: null,
-  selectedTimelineClipId: null
-});
+export const playbackStore = writable(
+  /** @type {PlaybackState} */ ({
+    isPlaying: false,
+    currentTime: 0,
+    selectedClipId: /** @type {string | null} */ (null),
+    selectedTimelineClipId: /** @type {string | null} */ (null),
+  })
+);

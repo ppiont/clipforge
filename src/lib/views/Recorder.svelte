@@ -11,7 +11,7 @@
 <div class="recorder-container">
   <div class="status-bar">
     <div class="recording-indicator" class:active={$recordingStore.isRecording}>
-      <span class="dot" />
+      <span class="dot"></span>
       {$recordingStore.isRecording ? 'Recording...' : 'Ready'}
     </div>
     <div class="timer">

@@ -8,8 +8,9 @@
    * Playback controls and timeline editing buttons
    */
 
-  /** @type {HTMLVideoElement | null} */
-  export let videoElement = null;
+  let {
+    videoElement = $bindable(null)
+  } = $props();
 
   function togglePlayPause() {
     if (!videoElement) return;
@@ -57,6 +58,8 @@
       size="sm"
       on:click={togglePlayPause}
       title="Play/Pause (Space)"
+      class=""
+      disabled={false}
     >
       {$playbackStore.isPlaying ? '⏸ Pause' : '▶ Play'}
     </Button>
@@ -66,16 +69,18 @@
       size="sm"
       on:click={handleStop}
       title="Stop"
+      class=""
+      disabled={false}
     >
       ⏹ Stop
     </Button>
   </div>
 
   <div class="flex gap-2">
-    <Button variant="outline" size="sm" disabled title="Split clip (Coming soon)">
+    <Button variant="outline" size="sm" disabled={true} title="Split clip (Coming soon)" class="">
       ✂ Split
     </Button>
-    <Button variant="outline" size="sm" disabled title="Delete clip (Coming soon)">
+    <Button variant="outline" size="sm" disabled={true} title="Delete clip (Coming soon)" class="">
       🗑 Delete
     </Button>
   </div>
