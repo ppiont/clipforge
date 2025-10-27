@@ -11,24 +11,26 @@
   let {
     videoElement = $bindable(null)
   } = $props();
-  let currentTime = 0;
-  let duration = 0;
-  let trimStart = 0;
-  let trimEnd = 0;
+  let currentTime = $state(0);
+  let duration = $state(0);
+  let trimStart = $state(0);
+  let trimEnd = $state(0);
 
   // Get selected clip from media library
-  $: selectedClip = $clipsStore.find(c => c.id === $playbackStore.selectedClipId);
+  let selectedClip = $derived($clipsStore.find(c => c.id === $playbackStore.selectedClipId));
 
   // Get selected timeline clip and its trim data
-  $: selectedTimelineClip = $timelineStore.clips.find(
-    c => c.id === $playbackStore.selectedTimelineClipId
+  let selectedTimelineClip = $derived(
+    $timelineStore.clips.find(
+      c => c.id === $playbackStore.selectedTimelineClipId
+    )
   );
 
   // Determine which clip to display (use timeline clip if available, else media library clip)
-  $: displayClip = selectedClip;
+  let displayClip = $derived(selectedClip);
 
   // Update trim range when timeline clip selected
-  $: {
+  $effect(() => {
     if (selectedTimelineClip) {
       trimStart = selectedTimelineClip.trimStart || 0;
       trimEnd = selectedTimelineClip.trimEnd || duration;
@@ -36,7 +38,7 @@
       trimStart = 0;
       trimEnd = duration;
     }
-  }
+  });
 
   /** @param {number} seconds */
   function formatTime(seconds) {
