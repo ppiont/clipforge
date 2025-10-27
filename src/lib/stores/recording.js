@@ -1,14 +1,19 @@
 import { writable } from 'svelte/store';
 
 /**
- * Recording state store
- * Tracks recording session status and parameters
- * (Stub for future recording features)
+ * @typedef {Object} RecordingState
+ * @property {boolean} isRecording - Whether currently recording
+ * @property {'screen' | 'webcam' | 'both' | null} source - Recording source
+ * @property {number | null} startTime - Recording start timestamp
+ * @property {MediaStream | null} stream - MediaStream object
+ * @property {number} recordedDuration - Duration of current recording in seconds
  */
+
+/** @type {import('svelte/store').Writable<RecordingState>} */
 export const recordingStore = writable({
-  isRecording: false,     // Whether currently recording
-  source: null,           // 'screen' | 'webcam' | 'both' | null
-  startTime: null,        // Recording start timestamp
-  stream: null,           // MediaStream object
-  recordedDuration: 0     // Duration of current recording in seconds
+  isRecording: false,
+  source: null,
+  startTime: null,
+  stream: null,
+  recordedDuration: 0
 });

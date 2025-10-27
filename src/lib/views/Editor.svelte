@@ -12,7 +12,8 @@
   import ExportModal from '../components/ExportModal.svelte';
   import { invoke } from '@tauri-apps/api/core';
 
-  let videoElement;
+  /** @type {HTMLVideoElement | null} */
+  let videoElement = null;
   let showExportModal = false;
 
   async function handleImportClick() {
@@ -46,7 +47,7 @@
 
   <div class="main-area">
     <div class="preview-section">
-      <Preview bind:videoElement />
+      <Preview bind:videoElement={videoElement} />
     </div>
     <div class="library-section">
       <MediaLibrary />

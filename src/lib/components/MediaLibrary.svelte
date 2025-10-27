@@ -8,6 +8,7 @@
    * Allows selection and drag-to-timeline
    */
 
+  /** @param {string} clipId */
   function selectClip(clipId) {
     playbackStore.update(state => ({
       ...state,
@@ -16,13 +17,17 @@
     }));
   }
 
+  /** @param {number} seconds */
   function formatTime(seconds) {
     const m = Math.floor(seconds / 60);
     const s = Math.floor(seconds % 60);
     return `${m}:${s.toString().padStart(2, '0')}`;
   }
 
+  /** @param {DragEvent} e
+   *  @param {{id: string, duration: number, path: string}} clip */
   function handleDragStart(e, clip) {
+    if (!e.dataTransfer) return;
     e.dataTransfer.effectAllowed = 'copy';
     e.dataTransfer.setData('application/json', JSON.stringify({
       clipId: clip.id,

@@ -9,7 +9,8 @@
    * Supports drag-and-drop clip placement and trimming
    */
 
-  let timelineElement;
+  /** @type {HTMLElement | null} */
+  let timelineElement = null;
   let zoom = 100; // pixels per second
   const MIN_ZOOM = 20;
   const MAX_ZOOM = 300;
@@ -17,6 +18,7 @@
   $: timelineWidth = Math.max($timelineStore.duration * zoom, 500);
   $: playheadPosition = $playbackStore.currentTime * zoom;
 
+  /** @param {number} duration */
   function getTimeMarkers(duration) {
     const markers = [];
     const step = duration > 60 ? 10 : 5;
@@ -26,6 +28,7 @@
     return markers;
   }
 
+  /** @param {number} seconds */
   function formatTime(seconds) {
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
@@ -36,7 +39,10 @@
     return `${m}:${s.toString().padStart(2, '0')}`;
   }
 
+  /** @param {MouseEvent} e
+   *  @param {number} trackIndex */
   function handleTimelineClick(e, trackIndex) {
+    if (!timelineElement) return;
     const rect = timelineElement.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
     const newTime = clickX / zoom;
@@ -47,12 +53,15 @@
     }));
   }
 
+  /** @param {DragEvent} e
+   *  @param {number} trackIndex */
   function handleDrop(e, trackIndex) {
     e.preventDefault();
     e.stopPropagation();
 
+    if (!e.dataTransfer || !e.currentTarget) return;
     const data = JSON.parse(e.dataTransfer.getData('application/json'));
-    const rect = e.currentTarget.getBoundingClientRect();
+    const rect = /** @type {HTMLElement} */ (e.currentTarget).getBoundingClientRect();
     const dropX = e.clientX - rect.left;
     const startTime = Math.max(0, dropX / zoom);
 
@@ -73,11 +82,15 @@
     }));
   }
 
+  /** @param {DragEvent} e */
   function handleDragOver(e) {
     e.preventDefault();
-    e.dataTransfer.dropEffect = 'copy';
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'copy';
+    }
   }
 
+  /** @param {string} clipId */
   function selectTimelineClip(clipId) {
     playbackStore.update(state => ({
       ...state,
@@ -86,10 +99,12 @@
     }));
   }
 
+  /** @param {number} trackIndex */
   function getClipsForTrack(trackIndex) {
     return $timelineStore.clips.filter(c => c.track === trackIndex);
   }
 
+  /** @param {string} clipId */
   function getClipFilename(clipId) {
     return $clipsStore.find(c => c.id === clipId)?.filename || 'Unknown';
   }

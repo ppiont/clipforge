@@ -10,8 +10,10 @@
 </script>
 
 {#if show}
-  <div class="modal-overlay" on:click={onClose}>
-    <div class="modal" on:click|stopPropagation>
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="modal-overlay" on:click={onClose} role="presentation">
+    <div class="modal" on:click|stopPropagation role="dialog" aria-modal="true">
       <div class="modal-header">
         <h2>Export Video</h2>
         <button class="close-btn" on:click={onClose}>✕</button>

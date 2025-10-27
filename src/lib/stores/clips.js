@@ -1,16 +1,13 @@
 import { writable } from 'svelte/store';
 
 /**
- * Media library clips store
- * Stores imported video files with metadata
+ * @typedef {Object} Clip
+ * @property {string} id - Unique clip ID
+ * @property {string} filename - Original filename
+ * @property {string} path - File path
+ * @property {number} duration - Duration in seconds
+ * @property {string} resolution - Resolution string (e.g., "1920x1080")
  */
-export const clipsStore = writable([
-  // Clip structure:
-  // {
-  //   id: string,
-  //   filename: string,
-  //   path: string,
-  //   duration: number,
-  //   resolution: string (e.g., "1920x1080")
-  // }
-]);
+
+/** @type {import('svelte/store').Writable<Clip[]>} */
+export const clipsStore = writable([]);

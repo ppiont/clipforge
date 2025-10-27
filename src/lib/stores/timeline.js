@@ -1,22 +1,26 @@
 import { writable } from 'svelte/store';
 
 /**
- * Timeline clips store
- * Stores clips placed on the timeline with position and trim data
+ * @typedef {Object} TimelineClip
+ * @property {string} id - Unique timeline clip ID
+ * @property {string} clipId - Reference to clips store
+ * @property {number} track - 0 = main, 1 = overlay
+ * @property {number} startTime - Position on timeline in seconds
+ * @property {number} trimStart - Trim in point in seconds
+ * @property {number} trimEnd - Trim out point in seconds
+ * @property {number} duration - Duration in seconds
  */
+
+/**
+ * @typedef {Object} TimelineState
+ * @property {TimelineClip[]} clips - Clips on timeline
+ * @property {number} playhead - Current playhead position in seconds
+ * @property {number} duration - Total timeline duration in seconds
+ */
+
+/** @type {import('svelte/store').Writable<TimelineState>} */
 export const timelineStore = writable({
-  clips: [
-    // Timeline clip structure:
-    // {
-    //   id: string (unique timeline clip ID),
-    //   clipId: string (reference to clips store),
-    //   track: number (0 = main, 1 = overlay),
-    //   startTime: number (seconds, position on timeline),
-    //   trimStart: number (seconds, trim in point),
-    //   trimEnd: number (seconds, trim out point),
-    //   duration: number (seconds, trimEnd - trimStart)
-    // }
-  ],
-  playhead: 0, // Current playhead position in seconds
-  duration: 0  // Total timeline duration in seconds
+  clips: [],
+  playhead: 0,
+  duration: 0
 });

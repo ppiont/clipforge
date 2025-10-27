@@ -1,12 +1,17 @@
 import { writable } from 'svelte/store';
 
 /**
- * Playback state store
- * Tracks video playback status and selected clips
+ * @typedef {Object} PlaybackState
+ * @property {boolean} isPlaying - Whether video is currently playing
+ * @property {number} currentTime - Current playback position in seconds
+ * @property {string | null} selectedClipId - Currently selected clip ID from media library
+ * @property {string | null} selectedTimelineClipId - Currently selected clip on timeline
  */
+
+/** @type {import('svelte/store').Writable<PlaybackState>} */
 export const playbackStore = writable({
-  isPlaying: false,           // Whether video is currently playing
-  currentTime: 0,             // Current playback position in seconds
-  selectedClipId: null,       // Currently selected clip ID from media library
-  selectedTimelineClipId: null // Currently selected clip on timeline
+  isPlaying: false,
+  currentTime: 0,
+  selectedClipId: null,
+  selectedTimelineClipId: null
 });

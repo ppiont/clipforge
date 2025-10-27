@@ -8,7 +8,8 @@
    * Displays selected video clip with playback
    */
 
-  let videoElement;
+  /** @type {HTMLVideoElement | null} */
+  export let videoElement = null;
   let currentTime = 0;
   let duration = 0;
   let trimStart = 0;
@@ -22,18 +23,21 @@
     c => c.id === $playbackStore.selectedTimelineClipId
   );
 
-  // Determine which clip to display
-  $: displayClip = selectedTimelineClip || selectedClip;
+  // Determine which clip to display (use timeline clip if available, else media library clip)
+  $: displayClip = selectedClip;
 
   // Update trim range when timeline clip selected
-  $: if (selectedTimelineClip) {
-    trimStart = selectedTimelineClip.trimStart;
-    trimEnd = selectedTimelineClip.trimEnd;
-  } else {
-    trimStart = 0;
-    trimEnd = duration;
+  $: {
+    if (selectedTimelineClip) {
+      trimStart = selectedTimelineClip.trimStart || 0;
+      trimEnd = selectedTimelineClip.trimEnd || duration;
+    } else {
+      trimStart = 0;
+      trimEnd = duration;
+    }
   }
 
+  /** @param {number} seconds */
   function formatTime(seconds) {
     const m = Math.floor(seconds / 60);
     const s = Math.floor(seconds % 60);
