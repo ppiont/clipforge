@@ -17,13 +17,21 @@
   let trimEnd = $state(0);
 
   // Get selected clip from media library
-  let selectedClip = $derived($clipsStore.find(c => c.id === $playbackStore.selectedClipId));
+  let selectedClip = $derived(
+    /** @type {{id: string; filename: string; path: string; duration: number; resolution: string} | undefined} */
+    ($clipsStore.find(
+      /** @param {{id: string; filename: string; path: string; duration: number; resolution: string}} c */
+      c => c.id === $playbackStore.selectedClipId
+    ))
+  );
 
   // Get selected timeline clip and its trim data
   let selectedTimelineClip = $derived(
-    $timelineStore.clips.find(
+    /** @type {{id: string; clipId: string; track: number; startTime: number; trimStart: number; trimEnd: number; duration: number} | undefined} */
+    ($timelineStore.clips.find(
+      /** @param {{id: string; clipId: string; track: number; startTime: number; trimStart: number; trimEnd: number; duration: number}} c */
       c => c.id === $playbackStore.selectedTimelineClipId
-    )
+    ))
   );
 
   // Determine which clip to display (use timeline clip if available, else media library clip)
@@ -95,10 +103,10 @@
     <video
       bind:this={videoElement}
       src={displayClip.path}
-      on:timeupdate={onTimeUpdate}
-      on:loadedmetadata={onLoadedMetadata}
-      on:play={onPlay}
-      on:pause={onPause}
+      ontimeupdate={onTimeUpdate}
+      onloadedmetadata={onLoadedMetadata}
+      onplay={onPlay}
+      onpause={onPause}
       width="640"
       height="360"
       class="w-full h-full object-contain"
