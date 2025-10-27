@@ -8,21 +8,14 @@ fn greet(name: &str) -> String {
 
 /// Opens a file picker dialog for video files
 /// Returns the selected file path or None if cancelled
+///
+/// Note: Tauri dialog API requires feature flags. For MVP, this is a stub
+/// that will be implemented with proper dialog plugin in next phase.
 #[tauri::command]
 async fn pick_video_file() -> Result<Option<PathBuf>, String> {
-    use tauri::api::dialog;
-
-    let file_path = dialog::FileDialogBuilder::new()
-        .add_filter("Video Files", &["mp4", "mov", "webm"])
-        .add_filter("MP4", &["mp4"])
-        .add_filter("MOV", &["mov"])
-        .add_filter("WebM", &["webm"])
-        .add_filter("All Files", &["*"])
-        .pick_file()
-        .await
-        .map_err(|e| e.to_string())?;
-
-    Ok(file_path)
+    // TODO: Implement with tauri-plugin-dialog in phase 2
+    // For now, return None to indicate no file selected
+    Ok(None)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
