@@ -45,6 +45,10 @@
   /** @param {number} duration */
   function getTimeMarkers(duration) {
     const markers = [];
+    // If timeline is empty (only default duration), just show 0:00
+    if ($timelineStore.clips.length === 0) {
+      return [0];
+    }
     const step = duration > 60 ? 10 : 5;
     for (let i = 0; i <= Math.ceil(duration); i += step) {
       markers.push(i);
@@ -262,11 +266,11 @@
   }
 
   function zoom_in() {
-    zoom = Math.min(zoom + 20, MAX_ZOOM);
+    zoom = Math.min(zoom + 10, MAX_ZOOM);
   }
 
   function zoom_out() {
-    zoom = Math.max(zoom - 20, MIN_ZOOM);
+    zoom = Math.max(zoom - 10, MIN_ZOOM);
   }
 
   function zoom_reset() {
@@ -476,7 +480,7 @@
                 ? 'bg-primary/10 ring-2 ring-primary ring-inset'
                 : 'hover:bg-muted/30'
             }`}
-            style="width: {timelineWidth}px"
+            style="width: {timelineWidth}px; min-width: 100%;"
             onclick={(e) => handleTimelineClick(e, 0)}
             onkeydown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
@@ -490,22 +494,20 @@
             tabindex="0"
           >
             <!-- Playhead for Track 1 -->
-            <div
-              class="absolute h-full z-50"
-              style="left: {playheadPosition}px"
-              title={formatTime($playbackStore.currentTime)}
-            >
-              <!-- Draggable handle -->
+            {#if $timelineStore.clips.length > 0}
               <div
-                class="absolute top-0 left-1/2 -translate-x-1/2 w-3 h-3 bg-destructive rounded-full cursor-ew-resize shadow-md"
+                class="absolute h-full z-50 cursor-ew-resize"
+                style="left: {playheadPosition}px"
+                title={formatTime($playbackStore.currentTime)}
                 onmousedown={startPlayheadDrag}
                 role="button"
                 tabindex="0"
                 aria-label="Playhead - drag to scrub"
-              ></div>
-              <!-- Playhead line -->
-              <div class="absolute w-0.5 h-full bg-destructive shadow-md pointer-events-none"></div>
-            </div>
+              >
+                <!-- Playhead line (entire line is draggable) -->
+                <div class="absolute w-0.5 h-full bg-destructive shadow-md -translate-x-1/2"></div>
+              </div>
+            {/if}
             {#each getClipsForTrack(0) as timelineClip (timelineClip.id)}
               <div
                 class={`absolute top-1 h-7 bg-primary text-primary-foreground text-xs px-2 rounded flex items-center justify-between cursor-pointer select-none overflow-visible transition-all hover:brightness-110 ${
@@ -567,7 +569,7 @@
                 ? 'bg-primary/10 ring-2 ring-primary ring-inset'
                 : 'hover:bg-muted/30'
             }`}
-            style="width: {timelineWidth}px"
+            style="width: {timelineWidth}px; min-width: 100%;"
             onclick={(e) => handleTimelineClick(e, 1)}
             onkeydown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
@@ -581,22 +583,20 @@
             tabindex="0"
           >
             <!-- Playhead for Track 2 -->
-            <div
-              class="absolute h-full z-50"
-              style="left: {playheadPosition}px"
-              title={formatTime($playbackStore.currentTime)}
-            >
-              <!-- Draggable handle -->
+            {#if $timelineStore.clips.length > 0}
               <div
-                class="absolute top-0 left-1/2 -translate-x-1/2 w-3 h-3 bg-destructive rounded-full cursor-ew-resize shadow-md"
+                class="absolute h-full z-50 cursor-ew-resize"
+                style="left: {playheadPosition}px"
+                title={formatTime($playbackStore.currentTime)}
                 onmousedown={startPlayheadDrag}
                 role="button"
                 tabindex="0"
                 aria-label="Playhead - drag to scrub"
-              ></div>
-              <!-- Playhead line -->
-              <div class="absolute w-0.5 h-full bg-destructive shadow-md pointer-events-none"></div>
-            </div>
+              >
+                <!-- Playhead line (entire line is draggable) -->
+                <div class="absolute w-0.5 h-full bg-destructive shadow-md -translate-x-1/2"></div>
+              </div>
+            {/if}
             {#each getClipsForTrack(1) as timelineClip (timelineClip.id)}
               <div
                 class={`absolute top-1 h-7 bg-primary text-primary-foreground text-xs px-2 rounded flex items-center justify-between cursor-pointer select-none overflow-visible transition-all hover:brightness-110 ${
