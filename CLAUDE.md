@@ -239,6 +239,11 @@ ffmpeg -i track1.mp4 -i track2.mp4 -filter_complex \
 
 ## Common Development Commands
 
+**IMPORTANT: Always use `bun`/`bunx` instead of `npm`/`npx`**
+- This project uses Bun as the package manager
+- Use `bunx` for running packages (e.g., `bunx shadcn-svelte@latest add button`)
+- Never use `npm`, `npx`, `yarn`, or `pnpm` commands
+
 ```bash
 # Development
 bun run dev                 # Start Tauri dev server with hot reload
@@ -253,6 +258,11 @@ bun run check:watch        # Watch mode
 
 # Running Tauri commands
 bun run tauri dev          # Run in dev mode (alternative)
+
+# Installing packages
+bun add <package>           # Add dependency
+bun add -d <package>        # Add dev dependency
+bunx <command>              # Run package binary (like npx)
 ```
 
 ## Frontend-Backend Communication

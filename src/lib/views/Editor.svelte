@@ -10,6 +10,7 @@
   import Timeline from '../components/Timeline.svelte';
   import Controls from '../components/Controls.svelte';
   import ExportModal from '../components/ExportModal.svelte';
+  import * as Resizable from "$lib/components/ui/resizable/index.js";
   import { clipsStore, generateFilmstripForClip } from '../stores/clips.js';
   import { invoke } from '@tauri-apps/api/core';
 
@@ -86,18 +87,41 @@
     onExportClick={handleExportClick}
   />
 
-  <div class="flex flex-1 overflow-hidden">
-    <div class="flex-1 flex items-center justify-center bg-black p-2">
-      <Preview bind:videoElement={videoElement} />
-    </div>
-    <div class="flex-shrink-0 w-[300px] flex flex-col">
-      <MediaLibrary />
-    </div>
-  </div>
+  <!-- Vertical split: Main area (top) vs Timeline+Controls (bottom) -->
+  <Resizable.PaneGroup direction="vertical" class="flex-1">
+    <!-- Top pane: Horizontal split for Preview and MediaLibrary -->
+    <Resizable.Pane defaultSize={65} minSize={30}>
+      <Resizable.PaneGroup direction="horizontal">
+        <!-- Preview pane (left) -->
+        <Resizable.Pane defaultSize={75} minSize={40}>
+          <div class="flex items-center justify-center bg-black h-full p-2">
+            <Preview bind:videoElement={videoElement} />
+          </div>
+        </Resizable.Pane>
 
-  <Timeline {videoElement} />
+        <!-- Resizable handle between preview and media library -->
+        <Resizable.Handle withHandle class="" />
 
-  <Controls {videoElement} />
+        <!-- Media Library pane (right) -->
+        <Resizable.Pane defaultSize={25} minSize={15}>
+          <div class="h-full flex flex-col">
+            <MediaLibrary />
+          </div>
+        </Resizable.Pane>
+      </Resizable.PaneGroup>
+    </Resizable.Pane>
+
+    <!-- Resizable handle between main area and timeline -->
+    <Resizable.Handle withHandle class="" />
+
+    <!-- Bottom pane: Timeline + Controls -->
+    <Resizable.Pane defaultSize={35} minSize={20}>
+      <div class="flex flex-col h-full">
+        <Timeline {videoElement} />
+        <Controls {videoElement} />
+      </div>
+    </Resizable.Pane>
+  </Resizable.PaneGroup>
 
   <ExportModal bind:show={showExportModal} />
 </div>
