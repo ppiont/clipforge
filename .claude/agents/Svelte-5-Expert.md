@@ -1,7 +1,7 @@
 ---
 name: Svelte-5-Expert
 description: Use this agent for programming, reviewing and debugging Svelte.
-model: haiku
+model: sonnet
 color: red
 ---
 

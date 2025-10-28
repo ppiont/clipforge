@@ -25,9 +25,19 @@
   let resolution = $state("Source");
   let isExporting = $state(false);
   let progress = $state(0);
+
+  /** @param {boolean} _value */
+  function handleOpenChange(_value) {
+    onClose();
+  }
+
+  /** @param {string} value */
+  function updateResolution(value) {
+    resolution = value;
+  }
 </script>
 
-<Dialog open={show} onOpenChange={onClose}>
+<Dialog open={show} onOpenChange={handleOpenChange}>
   <DialogContent class="sm:max-w-[500px]" portalProps={{}}>
     <DialogHeader class="">
       <DialogTitle class="">Export Video</DialogTitle>
@@ -40,16 +50,38 @@
       {#if !isExporting}
         <div class="space-y-2">
           <label for="resolution" class="text-sm font-medium">Resolution</label>
-          <Select bind:value={resolution}>
-            <SelectTrigger id="resolution" class="">
-              <span>{resolution || 'Select resolution'}</span>
-            </SelectTrigger>
-            <SelectContent class="" portalProps={{}}>
-              <SelectItem value="Source" label="">Source</SelectItem>
-              <SelectItem value="720p" label="">720p</SelectItem>
-              <SelectItem value="1080p" label="">1080p</SelectItem>
-            </SelectContent>
-          </Select>
+          <div class="space-y-2">
+            <label class="flex items-center gap-2">
+              <input
+                type="radio"
+                name="resolution"
+                value="Source"
+                checked={resolution === "Source"}
+                onchange={(e) => updateResolution(e.currentTarget.value)}
+              />
+              <span>Source (Original)</span>
+            </label>
+            <label class="flex items-center gap-2">
+              <input
+                type="radio"
+                name="resolution"
+                value="720p"
+                checked={resolution === "720p"}
+                onchange={(e) => updateResolution(e.currentTarget.value)}
+              />
+              <span>720p</span>
+            </label>
+            <label class="flex items-center gap-2">
+              <input
+                type="radio"
+                name="resolution"
+                value="1080p"
+                checked={resolution === "1080p"}
+                onchange={(e) => updateResolution(e.currentTarget.value)}
+              />
+              <span>1080p</span>
+            </label>
+          </div>
         </div>
       {:else}
         <div class="space-y-2">
@@ -63,7 +95,7 @@
     </div>
 
     <DialogFooter class="">
-      <Button variant="outline" on:click={onClose} disabled={isExporting} class="">
+      <Button variant="outline" disabled={isExporting} class="" onclick={onClose}>
         Cancel
       </Button>
       <Button disabled={isExporting || !show} class="">

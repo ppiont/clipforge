@@ -15,7 +15,9 @@
       "mcp__ide__getDiagnostics",
       "WebFetch(domain:tauri.app)",
       "WebSearch",
-      "WebFetch(domain:shadcn-svelte.com)"
+      "WebFetch(domain:shadcn-svelte.com)",
+      "Bash(bun run build:*)",
+      "WebFetch(domain:github.com)"
     ],
     "deny": [],
     "ask": []

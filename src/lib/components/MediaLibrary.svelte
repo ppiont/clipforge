@@ -149,8 +149,8 @@
 
       const paths = [];
       for (let i = 0; i < files.length; i++) {
-        const file = files[i];
         // @ts-ignore - File has a path property in Electron/Tauri
+        const file = /** @type {{path?: string}} */ (files[i]);
         if (file.path) {
           paths.push(file.path);
         }
@@ -167,6 +167,13 @@
   }
 
   /**
+   * NOTE: External file drag-drop is disabled due to Tauri limitation
+   * With dragDropEnabled: false (needed for internal HTML5 drag-drop),
+   * Tauri's file-drop events don't fire. Use Import button instead.
+   * See: https://github.com/tauri-apps/tauri/issues/14373
+   */
+
+  /**
    * Workaround: Add clip to timeline at the end
    * TODO: Re-enable drag-drop when Tauri issue is resolved
    * @param {string} clipId
@@ -176,6 +183,7 @@
     const clip = $clipsStore.find(c => c.id === clipId);
     if (!clip) return;
 
+    /** @type {{id: string; clipId: string; track: number; startTime: number; trimStart: number; trimEnd: number; duration: number}} */
     const timelineClip = {
       id: `timeline-clip-${Date.now()}-${Math.random()}`,
       clipId: clip.id,
@@ -188,7 +196,9 @@
 
     console.log('Adding clip to timeline:', timelineClip);
 
-    timelineStore.update(state => ({
+    /** @type {any} */
+    const store = timelineStore;
+    store.update((/** @type {any} */ state) => ({
       ...state,
       clips: [...state.clips, timelineClip],
       duration: state.duration + clip.duration
@@ -211,7 +221,7 @@
     </div>
   </div>
 
-  <ScrollArea class={`flex-1 border-2 border-dashed m-3 rounded-lg transition-colors ${isDraggingOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/30'}`}>
+  <ScrollArea class="flex-1 m-3 border rounded-lg">
     <div class="p-3 space-y-2">
       {#each $clipsStore as clip (clip.id)}
         <Card
@@ -283,7 +293,7 @@
           class="flex flex-col items-center justify-center py-12 text-center text-muted-foreground"
         >
           <p class="text-sm">No clips imported yet</p>
-          <p class="text-xs mt-1">Click Import or drag videos here</p>
+          <p class="text-xs mt-1">Click Import button above to add videos</p>
         </div>
       {/if}
     </div>

@@ -14,15 +14,15 @@
   <h1 class="text-lg font-semibold">ClipForge</h1>
 
   <div class="flex gap-2">
-    <Button variant="outline" onclick={onImportClick}>
+    <Button variant="outline" class="" disabled={false} onclick={onImportClick}>
       <FolderOpen class="w-4 h-4" />
       Import
     </Button>
-    <Button variant="outline" onclick={onRecordClick}>
+    <Button variant="outline" class="" disabled={false} onclick={onRecordClick}>
       <Circle class="w-4 h-4 text-destructive" />
       Record
     </Button>
-    <Button variant="outline" onclick={onExportClick}>
+    <Button variant="outline" class="" disabled={false} onclick={onExportClick}>
       <Save class="w-4 h-4" />
       Export
     </Button>
