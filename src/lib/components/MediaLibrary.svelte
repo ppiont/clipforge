@@ -181,10 +181,14 @@
           // Generate thumbnail asynchronously (at 1 second into video)
           try {
             const thumbnailTimestamp = Math.min(1.0, videoData.duration ?? 1.0);
+            console.log(`Generating thumbnail for ${filePath} at ${thumbnailTimestamp}s`);
+
             const thumbnail = await invoke("generate_thumbnail", {
               videoPath: filePath,
               timestamp: thumbnailTimestamp
             });
+
+            console.log(`Thumbnail generated successfully for ${clipId}`);
 
             // Update the clip with thumbnail
             clips.update((currentClips) => {
@@ -193,7 +197,7 @@
               );
             });
           } catch (err) {
-            console.error("Error generating thumbnail:", err);
+            console.error("Error generating thumbnail for", filePath, ":", err);
             // Continue without thumbnail
           }
         }

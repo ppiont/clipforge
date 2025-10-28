@@ -116,6 +116,7 @@ fn pick_video_file_by_path(path: String) -> Result<VideoMetadata, String> {
 /// Returns the base64-encoded PNG image data URL
 #[tauri::command]
 fn generate_thumbnail(video_path: String, timestamp: f64) -> Result<String, String> {
+    println!("Generating thumbnail for: {} at {}s", video_path, timestamp);
     use std::fs;
     use std::env;
 
