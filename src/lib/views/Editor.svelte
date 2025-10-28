@@ -87,10 +87,10 @@
     onExportClick={handleExportClick}
   />
 
-  <!-- Vertical split: Main area (top) vs Timeline+Controls (bottom) -->
+  <!-- Vertical split: Main area (top) vs Timeline (bottom) -->
   <Resizable.PaneGroup direction="vertical" class="flex-1">
     <!-- Top pane: Horizontal split for Preview and MediaLibrary -->
-    <Resizable.Pane defaultSize={65} minSize={30}>
+    <Resizable.Pane defaultSize={60} minSize={30}>
       <Resizable.PaneGroup direction="horizontal">
         <!-- Preview pane (left) -->
         <Resizable.Pane defaultSize={75} minSize={40}>
@@ -114,14 +114,14 @@
     <!-- Resizable handle between main area and timeline -->
     <Resizable.Handle withHandle class="" />
 
-    <!-- Bottom pane: Timeline + Controls -->
-    <Resizable.Pane defaultSize={35} minSize={20}>
-      <div class="flex flex-col h-full">
-        <Timeline {videoElement} />
-        <Controls {videoElement} />
-      </div>
+    <!-- Bottom pane: Timeline only (Controls fixed below) -->
+    <Resizable.Pane defaultSize={40} minSize={15}>
+      <Timeline {videoElement} />
     </Resizable.Pane>
   </Resizable.PaneGroup>
+
+  <!-- Fixed Controls bar at the bottom (not resizable) -->
+  <Controls {videoElement} />
 
   <ExportModal bind:show={showExportModal} />
 </div>
