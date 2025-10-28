@@ -569,10 +569,10 @@
   tabindex="-1"
 >
   <!-- Timeline Container -->
-  <div class="flex flex-col flex-1 bg-card border-t" bind:this={timelineContainer}>
+  <div class="flex flex-col h-full bg-card border-t" bind:this={timelineContainer}>
     <!-- Timeline Tracks (includes time ruler that scrolls with content) -->
-    <ScrollArea orientation="horizontal" class="flex-1">
-      <div class="flex flex-col" style="height: 100%">
+    <ScrollArea orientation="horizontal" class="h-full">
+      <div class="flex flex-col h-full">
         <!-- Time Ruler -->
         <div class="relative bg-muted border-b flex" style="height: 24px; flex-shrink: 0">
           <!-- Zoom controls in time ruler -->
