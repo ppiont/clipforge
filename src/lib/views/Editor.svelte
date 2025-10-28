@@ -65,7 +65,7 @@
     </div>
   </div>
 
-  <Timeline />
+  <Timeline {videoElement} />
 
   <Controls {videoElement} />
 
