@@ -29,7 +29,7 @@
   // Track height configuration
   const BASE_TRACK_HEIGHT = 45; // Original/minimum height
   const DEFAULT_TRACK_HEIGHT = 90; // New default (2x base)
-  const MAX_TRACK_HEIGHT = 180; // Maximum (2x default)
+  const MAX_TRACK_HEIGHT = 90; // Maximum (2x minimum)
 
   // Measure actual track height from rendered element
   let trackHeight = $state(DEFAULT_TRACK_HEIGHT);
