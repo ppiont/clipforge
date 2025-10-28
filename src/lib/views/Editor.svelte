@@ -115,7 +115,9 @@
     <Resizable.Handle withHandle class="" />
 
     <!-- Bottom pane: Timeline only (Controls fixed below) -->
-    <Resizable.Pane defaultSize={40} minSize={15}>
+    <!-- minSize: 18% = 2 tracks at 45px min height -->
+    <!-- maxSize: 35% = 2 tracks at 90px max height (2x min) -->
+    <Resizable.Pane defaultSize={30} minSize={18} maxSize={35}>
       <Timeline {videoElement} />
     </Resizable.Pane>
   </Resizable.PaneGroup>
