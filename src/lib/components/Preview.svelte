@@ -41,8 +41,8 @@
   // Determine which clip to display based on timeline state
   // Priority: Timeline playback > Selected timeline clip > Selected media library clip
   let activeTimelineClip = $derived.by(() => {
-    // If we have timeline clips and playback is happening or playhead is > 0, find clip at playhead
-    if ($timelineStore.clips.length > 0 && ($playbackStore.isPlaying || $playbackStore.currentTime > 0)) {
+    // If we have timeline clips and playback is happening or playhead is >= 0, find clip at playhead
+    if ($timelineStore.clips.length > 0 && ($playbackStore.isPlaying || $playbackStore.currentTime >= 0)) {
       // Find clip at current playhead position (prioritize track 0, main video)
       const clipAtPlayhead = $timelineStore.clips
         .filter(c => c.track === 0) // Only main track for now
