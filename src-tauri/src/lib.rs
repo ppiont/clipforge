@@ -145,19 +145,14 @@ fn generate_filmstrip(
 
     // Get video metadata to calculate frame selection interval
     let metadata = extract_video_metadata(&video_path)?;
-    let duration = metadata.duration;
-
-    // Calculate how many frames to skip
-    // For a 60fps 10s video (600 total frames) with 20 desired frames:
-    // We want to sample evenly across the video
-    // Simple approach: extract frames at regular time intervals
-    let frame_interval = duration / frame_count as f64;
 
     // Build FFmpeg command for filmstrip generation
     // Strategy: Extract frames at regular intervals, scale, and tile vertically
+    // For a 60fps 10s video (600 total frames) with 20 desired frames:
+    // We select every Nth frame to sample evenly across the video
     let select_filter = format!(
         "select='not(mod(n,{}))',scale=120:-2,tile=1x{}",
-        // Select every Nth frame (approximate)
+        // Select every Nth frame (approximate, assuming 30fps baseline)
         ((metadata.duration * 30.0) / frame_count as f64).max(1.0) as i32,
         frame_count
     );
