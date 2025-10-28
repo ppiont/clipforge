@@ -18,9 +18,28 @@
 
   /** @type {HTMLElement | null} */
   let timelineElement = null;
+  /** @type {HTMLElement | null} */
+  let timelineContainer = null;
   let zoom = $state(100); // pixels per second
   const MIN_ZOOM = 20;
   const MAX_ZOOM = 300;
+
+  // Track height configuration
+  const BASE_TRACK_HEIGHT = 45; // Original/minimum height
+  const DEFAULT_TRACK_HEIGHT = 90; // New default (2x base)
+  const MAX_TRACK_HEIGHT = 180; // Maximum (2x default)
+
+  // Calculate dynamic track height based on available space
+  let availableHeight = $state(0);
+  let trackHeight = $derived.by(() => {
+    if (availableHeight === 0) return DEFAULT_TRACK_HEIGHT;
+
+    // Calculate per-track height (2 tracks + controls + margins)
+    const heightPerTrack = (availableHeight - 120) / 2; // Reserve ~120px for controls/margins
+
+    // Clamp between min and max
+    return Math.max(BASE_TRACK_HEIGHT, Math.min(MAX_TRACK_HEIGHT, heightPerTrack));
+  });
 
   let isDraggingOverTrack1 = $state(false);
   let isDraggingOverTrack2 = $state(false);
@@ -303,9 +322,10 @@
    * @param {number} trimStart - Trim start time in seconds
    * @param {number} trimEnd - Trim end time in seconds
    * @param {number} clipWidth - Width of clip in pixels
+   * @param {number} currentTrackHeight - Current track height in pixels
    * @returns {string} CSS background style
    */
-  function getFilmstripStyle(clipId, trimStart, trimEnd, clipWidth) {
+  function getFilmstripStyle(clipId, trimStart, trimEnd, clipWidth, currentTrackHeight) {
     const sourceClip = $clipsStore.find(c => c.id === clipId);
     if (!sourceClip) return '';
 
@@ -318,8 +338,8 @@
 
     const filmstripUrl = convertFileSrc(sourceClip.filmstrip);
     const frameCount = sourceClip.filmstripFrameCount || 20;
-    const frameHeight = 45; // Track height in pixels
-    const frameWidth = 120; // Individual thumbnail width
+    const frameHeight = currentTrackHeight - 8; // Track height minus padding/margins
+    const frameWidth = frameHeight * (16 / 9); // Maintain 16:9 aspect ratio
 
     // How many frames can fit in the visible clip width?
     const visibleFrameCount = Math.ceil(clipWidth / frameWidth);
@@ -361,6 +381,23 @@
         generateFilmstripForClip(clipId);
       }
     });
+  });
+
+  // Measure timeline container height for dynamic track sizing
+  $effect(() => {
+    if (!timelineContainer) return;
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        availableHeight = entry.contentRect.height;
+      }
+    });
+
+    resizeObserver.observe(timelineContainer);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
   });
 
   function zoom_in() {
@@ -533,7 +570,7 @@
 </script>
 
 <div
-  class="flex flex-col h-[150px] border-t bg-background"
+  class="flex flex-col h-full border-t bg-background"
   onkeydown={handleKeyDown}
   tabindex="-1"
 >
@@ -552,7 +589,7 @@
   </div>
 
   <!-- Timeline Container -->
-  <div class="flex flex-col flex-1 bg-card border-t">
+  <div class="flex flex-col flex-1 bg-card border-t" bind:this={timelineContainer}>
     <!-- Timeline Tracks (includes time ruler that scrolls with content) -->
     <ScrollArea orientation="horizontal" class="flex-1">
       <div class="flex flex-col">
@@ -569,7 +606,8 @@
         </div>
         <!-- Track 1 (Main Video) -->
         <div
-          class="relative border-b transition-colors h-[45px] flex"
+          class="relative border-b transition-colors flex"
+          style="height: {trackHeight}px"
           role="region"
           aria-label="Timeline track 1"
         >
@@ -613,19 +651,22 @@
             {/if}
             {#each getClipsForTrack(0) as timelineClip (timelineClip.id)}
               <div
-                class={`absolute top-1 h-7 text-primary-foreground text-xs px-2 rounded flex items-center justify-between cursor-pointer select-none overflow-hidden transition-all hover:brightness-110 ${
+                class={`absolute text-primary-foreground text-xs px-2 rounded flex items-center justify-between cursor-pointer select-none overflow-hidden transition-all hover:brightness-110 ${
                   $playbackStore.selectedTimelineClipId === timelineClip.id
                     ? 'ring-2 ring-ring shadow-lg brightness-110'
                     : ''
                 }`}
                 style="
+                  top: 4px;
+                  height: {trackHeight - 8}px;
                   left: {timelineClip.startTime * zoom}px;
                   width: {(timelineClip.trimEnd - timelineClip.trimStart) * zoom}px;
                   {getFilmstripStyle(
                     timelineClip.clipId,
                     timelineClip.trimStart,
                     timelineClip.trimEnd,
-                    (timelineClip.trimEnd - timelineClip.trimStart) * zoom
+                    (timelineClip.trimEnd - timelineClip.trimStart) * zoom,
+                    trackHeight
                   )}
                 "
                 onclick={(e) => {
@@ -665,7 +706,8 @@
 
         <!-- Track 2 (Overlay/PiP) -->
         <div
-          class="relative transition-colors h-[45px] flex"
+          class="relative transition-colors flex"
+          style="height: {trackHeight}px"
           role="region"
           aria-label="Timeline track 2"
         >
@@ -708,19 +750,22 @@
             {/if}
             {#each getClipsForTrack(1) as timelineClip (timelineClip.id)}
               <div
-                class={`absolute top-1 h-7 text-primary-foreground text-xs px-2 rounded flex items-center justify-between cursor-pointer select-none overflow-hidden transition-all hover:brightness-110 ${
+                class={`absolute text-primary-foreground text-xs px-2 rounded flex items-center justify-between cursor-pointer select-none overflow-hidden transition-all hover:brightness-110 ${
                   $playbackStore.selectedTimelineClipId === timelineClip.id
                     ? 'ring-2 ring-ring shadow-lg brightness-110'
                     : ''
                 }`}
                 style="
+                  top: 4px;
+                  height: {trackHeight - 8}px;
                   left: {timelineClip.startTime * zoom}px;
                   width: {(timelineClip.trimEnd - timelineClip.trimStart) * zoom}px;
                   {getFilmstripStyle(
                     timelineClip.clipId,
                     timelineClip.trimStart,
                     timelineClip.trimEnd,
-                    (timelineClip.trimEnd - timelineClip.trimStart) * zoom
+                    (timelineClip.trimEnd - timelineClip.trimStart) * zoom,
+                    trackHeight
                   )}
                 "
                 onclick={(e) => {
