@@ -20,6 +20,8 @@
   let timelineElement = null;
   /** @type {HTMLElement | null} */
   let timelineContainer = null;
+  /** @type {HTMLElement | null} */
+  let track1Element = null;
   let zoom = $state(100); // pixels per second
   const MIN_ZOOM = 20;
   const MAX_ZOOM = 300;
@@ -29,17 +31,8 @@
   const DEFAULT_TRACK_HEIGHT = 90; // New default (2x base)
   const MAX_TRACK_HEIGHT = 180; // Maximum (2x default)
 
-  // Calculate dynamic track height based on available space
-  let availableHeight = $state(0);
-  let trackHeight = $derived.by(() => {
-    if (availableHeight === 0) return DEFAULT_TRACK_HEIGHT;
-
-    // Calculate per-track height (2 tracks + controls + margins)
-    const heightPerTrack = (availableHeight - 120) / 2; // Reserve ~120px for controls/margins
-
-    // Clamp between min and max
-    return Math.max(BASE_TRACK_HEIGHT, Math.min(MAX_TRACK_HEIGHT, heightPerTrack));
-  });
+  // Measure actual track height from rendered element
+  let trackHeight = $state(DEFAULT_TRACK_HEIGHT);
 
   let isDraggingOverTrack1 = $state(false);
   let isDraggingOverTrack2 = $state(false);
@@ -383,17 +376,18 @@
     });
   });
 
-  // Measure timeline container height for dynamic track sizing
+  // Measure actual track height from rendered track element
   $effect(() => {
-    if (!timelineContainer) return;
+    if (!track1Element) return;
 
     const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        availableHeight = entry.contentRect.height;
+        // Use the actual rendered height of the track
+        trackHeight = entry.contentRect.height;
       }
     });
 
-    resizeObserver.observe(timelineContainer);
+    resizeObserver.observe(track1Element);
 
     return () => {
       resizeObserver.disconnect();
@@ -592,7 +586,7 @@
   <div class="flex flex-col flex-1 bg-card border-t" bind:this={timelineContainer}>
     <!-- Timeline Tracks (includes time ruler that scrolls with content) -->
     <ScrollArea orientation="horizontal" class="flex-1">
-      <div class="flex flex-col">
+      <div class="flex flex-col h-full">
         <!-- Time Ruler -->
         <div class="relative h-6 bg-muted border-b flex">
           <div class="w-[120px] shrink-0 border-r"></div>
@@ -606,8 +600,9 @@
         </div>
         <!-- Track 1 (Main Video) -->
         <div
-          class="relative border-b transition-colors flex"
-          style="height: {trackHeight}px"
+          bind:this={track1Element}
+          class="relative border-b transition-colors flex flex-1"
+          style="min-height: {BASE_TRACK_HEIGHT}px; max-height: {MAX_TRACK_HEIGHT}px"
           role="region"
           aria-label="Timeline track 1"
         >
@@ -706,8 +701,8 @@
 
         <!-- Track 2 (Overlay/PiP) -->
         <div
-          class="relative transition-colors flex"
-          style="height: {trackHeight}px"
+          class="relative transition-colors flex flex-1"
+          style="min-height: {BASE_TRACK_HEIGHT}px; max-height: {MAX_TRACK_HEIGHT}px"
           role="region"
           aria-label="Timeline track 2"
         >
