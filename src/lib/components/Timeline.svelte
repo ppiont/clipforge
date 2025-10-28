@@ -572,9 +572,9 @@
   <div class="flex flex-col flex-1 bg-card border-t" bind:this={timelineContainer}>
     <!-- Timeline Tracks (includes time ruler that scrolls with content) -->
     <ScrollArea orientation="horizontal" class="flex-1">
-      <div class="flex flex-col h-full">
+      <div class="flex flex-col" style="height: 100%">
         <!-- Time Ruler -->
-        <div class="relative h-6 bg-muted border-b flex">
+        <div class="relative bg-muted border-b flex" style="height: 24px; flex-shrink: 0">
           <!-- Zoom controls in time ruler -->
           <div class="w-[120px] shrink-0 border-r flex items-center justify-center gap-0.5 px-1">
             <Button variant="ghost" size="sm" onclick={zoom_out} title="Zoom out" class="h-5 w-5 p-0" disabled={false}>
