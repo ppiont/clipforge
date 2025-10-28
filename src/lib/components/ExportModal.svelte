@@ -9,10 +9,17 @@
   } from "$lib/components/ui/dialog";
   import { Button } from "$lib/components/ui/button";
   import { Progress } from "$lib/components/ui/progress";
+  import { Tabs, TabsContent, TabsList, TabsTrigger } from "$lib/components/ui/tabs";
+  import * as Select from "$lib/components/ui/select/index.js";
+  import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "$lib/components/ui/card";
+  import { Badge } from "$lib/components/ui/badge";
+  import { Separator } from "$lib/components/ui/separator";
+  import { FileVideo, Monitor, Settings } from "@lucide/svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { save } from "@tauri-apps/plugin-dialog";
   import { timelineStore } from "../stores/timeline.js";
   import { clipsStore } from "../stores/clips.js";
+  import { EXPORT_RESOLUTIONS, EXPORT_FORMATS, estimateFileSize } from "../config/export.js";
 
   /**
    * @typedef {import('../stores/timeline.js').TimelineClip} TimelineClip
@@ -21,7 +28,7 @@
 
   /**
    * ExportModal Component
-   * Modal dialog for exporting video
+   * Modern modal dialog for exporting video with configuration options
    */
 
   let {
@@ -29,22 +36,38 @@
     onClose = () => {}
   } = $props();
 
-  let resolution = $state("Source");
+  let resolution = $state("1080p");
+  let format = $state("mp4");
   let isExporting = $state(false);
   let progress = $state(0);
   let errorMessage = $state("");
+  let activeTab = $state("video");
+
+  // Computed values
+  const selectedResolution = $derived(
+    EXPORT_RESOLUTIONS.find(r => r.value === resolution) || EXPORT_RESOLUTIONS[2]
+  );
+  const selectedFormat = $derived(
+    EXPORT_FORMATS.find(f => f.value === format) || EXPORT_FORMATS[0]
+  );
+
+  // Calculate total timeline duration
+  const totalDuration = $derived(
+    $timelineStore.clips.reduce((sum, clip) => sum + clip.duration, 0)
+  );
+
+  // Estimate file size
+  const estimatedSize = $derived(
+    estimateFileSize(resolution, totalDuration, format)
+  );
 
   /** @param {boolean} _value */
   function handleOpenChange(_value) {
     if (!isExporting) {
       errorMessage = "";
+      activeTab = "video";
       onClose();
     }
-  }
-
-  /** @param {string} value */
-  function updateResolution(value) {
-    resolution = value;
   }
 
   async function handleExport() {
@@ -54,13 +77,13 @@
     }
 
     try {
-      // Show save dialog
+      // Show save dialog with appropriate extension
       const outputPath = await save({
         filters: [{
           name: "Video",
-          extensions: ["mp4"]
+          extensions: [format]
         }],
-        defaultPath: "export.mp4"
+        defaultPath: `export.${format}`
       });
 
       if (!outputPath) {
@@ -102,7 +125,8 @@
           };
         }),
         output_path: outputPath,
-        resolution: resolution
+        resolution: resolution,
+        format: format
       };
 
       // Get clip metadata
@@ -136,77 +160,150 @@
 </script>
 
 <Dialog open={show} onOpenChange={handleOpenChange}>
-  <DialogContent class="sm:max-w-[500px]" portalProps={{}}>
-    <DialogHeader class="">
-      <DialogTitle class="">Export Video</DialogTitle>
-      <DialogDescription class="">
-        Configure and export your video composition
+  <DialogContent class="sm:max-w-[550px]" portalProps={{}}>
+    <div id="export-modal-portal"></div>
+    <DialogHeader>
+      <DialogTitle class="flex items-center gap-2">
+        <FileVideo class="w-5 h-5" />
+        Export Video
+      </DialogTitle>
+      <DialogDescription>
+        Configure your video export settings and format
       </DialogDescription>
     </DialogHeader>
 
-    <div class="space-y-4 py-4">
+    <div class="space-y-4">
       {#if errorMessage}
-        <div class="p-3 bg-destructive/10 border border-destructive rounded text-sm text-destructive">
+        <div class="p-3 bg-destructive/10 border border-destructive rounded-md text-sm text-destructive">
           {errorMessage}
         </div>
       {/if}
 
       {#if !isExporting}
-        <div class="space-y-2">
-          <label for="resolution" class="text-sm font-medium">Resolution</label>
-          <div class="space-y-2">
-            <label class="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name="resolution"
-                value="Source"
-                checked={resolution === "Source"}
-                onchange={(e) => updateResolution(e.currentTarget.value)}
-                class="cursor-pointer"
-              />
-              <span>Source (Original)</span>
-            </label>
-            <label class="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name="resolution"
-                value="720p"
-                checked={resolution === "720p"}
-                onchange={(e) => updateResolution(e.currentTarget.value)}
-                class="cursor-pointer"
-              />
-              <span>720p (1280x720)</span>
-            </label>
-            <label class="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name="resolution"
-                value="1080p"
-                checked={resolution === "1080p"}
-                onchange={(e) => updateResolution(e.currentTarget.value)}
-                class="cursor-pointer"
-              />
-              <span>1080p (1920x1080)</span>
-            </label>
-          </div>
-        </div>
+        <Tabs bind:value={activeTab} class="w-full">
+          <TabsList class="grid w-full grid-cols-2">
+            <TabsTrigger value="video" class="flex items-center gap-2">
+              <Monitor class="w-4 h-4" />
+              Video
+            </TabsTrigger>
+            <TabsTrigger value="advanced" class="flex items-center gap-2">
+              <Settings class="w-4 h-4" />
+              Advanced
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="video" class="space-y-4 mt-4">
+            <Card>
+              <CardHeader>
+                <CardTitle class="text-base">Output Settings</CardTitle>
+                <CardDescription>Choose resolution and format</CardDescription>
+              </CardHeader>
+              <CardContent class="space-y-4">
+                <!-- Format Selection -->
+                <div class="space-y-2">
+                  <label class="text-sm font-medium">Format</label>
+                  <Select.Root type="single" bind:value={format}>
+                    <Select.Trigger class="w-[200px]">
+                      <span>{selectedFormat.label}</span>
+                    </Select.Trigger>
+                    <Select.Content class="w-[200px]" portalProps={{ to: "#export-modal-portal" }}>
+                      <Select.Group>
+                        {#each EXPORT_FORMATS as fmt}
+                          <Select.Item value={fmt.value} label={fmt.label} />
+                        {/each}
+                      </Select.Group>
+                    </Select.Content>
+                  </Select.Root>
+                  <p class="text-xs text-muted-foreground">{selectedFormat.description}</p>
+                </div>
+
+                <!-- Resolution Selection -->
+                <div class="space-y-2">
+                  <label class="text-sm font-medium">Resolution</label>
+                  <Select.Root type="single" bind:value={resolution}>
+                    <Select.Trigger class="w-[200px]">
+                      <span>{selectedResolution.label}</span>
+                    </Select.Trigger>
+                    <Select.Content class="w-[200px]" portalProps={{ to: "#export-modal-portal" }}>
+                      <Select.Group>
+                        {#each EXPORT_RESOLUTIONS as res}
+                          <Select.Item value={res.value} label={res.label} />
+                        {/each}
+                      </Select.Group>
+                    </Select.Content>
+                  </Select.Root>
+                  <p class="text-xs text-muted-foreground">{selectedResolution.description}</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Separator />
+
+            <!-- Export Preview -->
+            <div class="space-y-2">
+              <p class="text-sm font-medium">Export Summary</p>
+              <div class="flex flex-wrap gap-2">
+                <Badge variant="secondary">
+                  {selectedResolution.description || 'Original'}
+                </Badge>
+                <Badge variant="secondary">
+                  {selectedFormat.label}
+                </Badge>
+                <Badge variant="outline">
+                  {Math.floor(totalDuration / 60)}:{String(Math.floor(totalDuration % 60)).padStart(2, '0')} duration
+                </Badge>
+                <Badge variant="outline">
+                  ~{estimatedSize}
+                </Badge>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="advanced" class="space-y-4 mt-4">
+            <Card>
+              <CardHeader>
+                <CardTitle class="text-base">Advanced Settings</CardTitle>
+                <CardDescription>Additional export options</CardDescription>
+              </CardHeader>
+              <CardContent class="space-y-4">
+                <p class="text-sm text-muted-foreground">
+                  Advanced settings coming soon. Future options will include:
+                </p>
+                <ul class="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+                  <li>Custom bitrate control</li>
+                  <li>Frame rate adjustment</li>
+                  <li>Audio quality settings</li>
+                  <li>Codec selection</li>
+                </ul>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       {:else}
-        <div class="space-y-2">
-          <div class="flex items-center justify-between text-sm">
-            <span>Exporting...</span>
-            <span class="font-medium">{progress}%</span>
-          </div>
-          <Progress value={progress} class="w-full" />
-        </div>
+        <!-- Export Progress -->
+        <Card>
+          <CardContent class="pt-6">
+            <div class="space-y-4">
+              <div class="flex items-center justify-between text-sm">
+                <span class="font-medium">Exporting video...</span>
+                <span class="font-bold text-primary">{progress}%</span>
+              </div>
+              <Progress value={progress} class="w-full h-2" />
+              <p class="text-xs text-muted-foreground text-center">
+                This may take a few moments depending on video length
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       {/if}
     </div>
 
-    <DialogFooter class="">
-      <Button variant="outline" disabled={isExporting} class="" onclick={handleOpenChange}>
+    <DialogFooter>
+      <Button variant="outline" disabled={isExporting} onclick={handleOpenChange}>
         Cancel
       </Button>
-      <Button disabled={isExporting} class="" onclick={handleExport}>
-        {isExporting ? 'Exporting...' : 'Export'}
+      <Button disabled={isExporting} onclick={handleExport}>
+        {isExporting ? 'Exporting...' : 'Export Video'}
       </Button>
     </DialogFooter>
   </DialogContent>

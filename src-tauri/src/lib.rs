@@ -27,7 +27,8 @@ pub struct TimelineClip {
 pub struct ExportRequest {
     pub clips: Vec<TimelineClip>,
     pub output_path: String,
-    pub resolution: String, // "Source", "720p", or "1080p"
+    pub resolution: String, // "Source", "720p", "1080p", "1440p", or "4K"
+    pub format: String, // "mp4", "webm", or "mov"
 }
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
@@ -215,6 +216,8 @@ fn export_video(request: ExportRequest, clips_data: Vec<VideoMetadata>) -> Resul
     let scale_filter = match request.resolution.as_str() {
         "720p" => Some("scale=1280:720"),
         "1080p" => Some("scale=1920:1080"),
+        "1440p" => Some("scale=2560:1440"),
+        "4K" => Some("scale=3840:2160"),
         _ => None, // Source resolution
     };
 
@@ -236,18 +239,50 @@ fn export_video(request: ExportRequest, clips_data: Vec<VideoMetadata>) -> Resul
         cmd.arg("-vf").arg(scale);
     }
 
-    // Output settings
-    cmd.arg("-c:v")
-        .arg("libx264") // H.264 video codec
-        .arg("-preset")
-        .arg("medium") // Balance between speed and quality
-        .arg("-crf")
-        .arg("23") // Quality (lower = better, 23 is good default)
-        .arg("-c:a")
-        .arg("aac") // AAC audio codec
-        .arg("-b:a")
-        .arg("192k") // Audio bitrate
-        .arg(&request.output_path);
+    // Output settings based on format
+    match request.format.as_str() {
+        "webm" => {
+            // WebM: VP9 video + Opus audio
+            cmd.arg("-c:v")
+                .arg("libvpx-vp9")
+                .arg("-crf")
+                .arg("30") // Quality (0-63, lower = better)
+                .arg("-b:v")
+                .arg("0") // Use CRF mode
+                .arg("-c:a")
+                .arg("libopus")
+                .arg("-b:a")
+                .arg("128k");
+        }
+        "mov" => {
+            // MOV: H.264 video + AAC audio (QuickTime compatible)
+            cmd.arg("-c:v")
+                .arg("libx264")
+                .arg("-preset")
+                .arg("medium")
+                .arg("-crf")
+                .arg("23")
+                .arg("-c:a")
+                .arg("aac")
+                .arg("-b:a")
+                .arg("192k");
+        }
+        _ => {
+            // MP4 (default): H.264 video + AAC audio
+            cmd.arg("-c:v")
+                .arg("libx264")
+                .arg("-preset")
+                .arg("medium")
+                .arg("-crf")
+                .arg("23")
+                .arg("-c:a")
+                .arg("aac")
+                .arg("-b:a")
+                .arg("192k");
+        }
+    }
+
+    cmd.arg(&request.output_path);
 
     println!("Running FFmpeg command: {:?}", cmd);
 

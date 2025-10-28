@@ -353,11 +353,16 @@ Focus testing on:
 
 ## Documentation Best Practices
 
-**Always use Context7 MCP for up-to-date library documentation:**
-- Use `mcp__context7__resolve-library-id` to find the library (Tauri, Svelte, etc.)
-- Use `mcp__context7__get-library-docs` to fetch current documentation with specific topics
-- This ensures you get accurate, latest API documentation instead of guessing
-- Especially important for Rust crates, npm packages, and framework APIs where versions matter
+**CRITICAL: ALWAYS use Context7 MCP for up-to-date library documentation - NO EXCEPTIONS:**
+- **MANDATORY FIRST STEP**: Use `mcp__context7__resolve-library-id` to find the library (Tauri, Svelte, shadcn-svelte, etc.)
+- **MANDATORY SECOND STEP**: Use `mcp__context7__get-library-docs` to fetch current documentation with specific topics
+- This ensures you get accurate, latest API documentation instead of guessing or using outdated knowledge
+- **NEVER** rely on your training data or web search for component APIs - Context7 is the source of truth
+- Especially critical for:
+  - shadcn-svelte component usage (Select, Tabs, Dialog, etc.)
+  - Rust crates and Tauri APIs
+  - npm packages and framework APIs where versions matter
+  - Svelte 5 runes and component patterns
 
 You are able to use the Svelte MCP server, where you have access to comprehensive Svelte 5 and SvelteKit documentation. Here's how to use the available tools effectively:
 
@@ -382,3 +387,5 @@ You MUST use this tool whenever writing Svelte code before sending it to the use
 
 Generates a Svelte Playground link with the provided code.
 After completing the code, ask the user if they want a playground link. Only call this tool after user confirmation and NEVER if code was written to files in their project.
+- Never run the bun dev server. Let the user do it.
+- Always use Svelte 5
