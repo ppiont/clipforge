@@ -18,6 +18,7 @@
   let trimStart = $state(0);
   let trimEnd = $state(0);
   let currentlyPlayingClipId = $state(null);
+  let syncFrameId = $state(null);
 
   // Get selected clip from media library
   let selectedClip = $derived(
@@ -112,71 +113,91 @@
     return `${m}:${s.toString().padStart(2, '0')}`;
   }
 
-  function onTimeUpdate() {
-    if (!videoElement) return;
-
-    currentTime = videoElement.currentTime;
-
-    // If we're playing from timeline, update timeline playhead position
-    if (activeTimelineClip) {
-      // Calculate timeline position from video position
-      const timelinePosition = activeTimelineClip.startTime + (currentTime - trimStart);
-
-      // Update both stores
-      playbackStore.update(state => ({
-        ...state,
-        currentTime: timelinePosition
-      }));
-      timelineStore.update(state => ({
-        ...state,
-        playhead: timelinePosition
-      }));
-
-      // Check if we've reached the end of the trimmed clip
-      if (currentTime >= trimEnd) {
-        // Move to next clip or stop
-        const nextClipStartTime = activeTimelineClip.startTime + activeTimelineClip.duration;
-        const nextClip = $timelineStore.clips
-          .filter(c => c.track === 0)
-          .find(c => c.startTime >= nextClipStartTime);
-
-        if (nextClip && $playbackStore.isPlaying) {
-          // Jump to next clip
-          playbackStore.update(state => ({
-            ...state,
-            currentTime: nextClip.startTime
-          }));
-        } else {
-          // No next clip, pause
-          videoElement.pause();
-          playbackStore.update(state => ({
-            ...state,
-            isPlaying: false
-          }));
-        }
-      }
-    } else {
-      // Playing from media library, just update current time
-      playbackStore.update(state => ({
-        ...state,
-        currentTime
-      }));
-      timelineStore.update(state => ({
-        ...state,
-        playhead: currentTime
-      }));
-
-      // Loop trim range if past trimEnd (for selected timeline clips)
-      if (selectedTimelineClip && trimEnd > 0 && currentTime > trimEnd) {
-        videoElement.currentTime = trimStart;
-      }
-    }
-  }
-
   function onLoadedMetadata() {
     if (videoElement) {
       duration = videoElement.duration;
       trimEnd = duration;
+    }
+  }
+
+  /**
+   * Start RAF-based synchronization for smooth 60fps playhead updates
+   */
+  function startSync() {
+    const sync = () => {
+      if (videoElement && !videoElement.paused) {
+        currentTime = videoElement.currentTime;
+
+        // If we're playing from timeline, update timeline playhead position
+        if (activeTimelineClip) {
+          // Calculate timeline position from video position
+          const timelinePosition = activeTimelineClip.startTime + (currentTime - trimStart);
+
+          // Update both stores
+          playbackStore.update(state => ({
+            ...state,
+            currentTime: timelinePosition
+          }));
+          timelineStore.update(state => ({
+            ...state,
+            playhead: timelinePosition
+          }));
+
+          // Check if we've reached the end of the trimmed clip
+          if (currentTime >= trimEnd) {
+            // Move to next clip or stop
+            const nextClipStartTime = activeTimelineClip.startTime + activeTimelineClip.duration;
+            const nextClip = $timelineStore.clips
+              .filter(c => c.track === 0)
+              .find(c => c.startTime >= nextClipStartTime);
+
+            if (nextClip && $playbackStore.isPlaying) {
+              // Jump to next clip
+              playbackStore.update(state => ({
+                ...state,
+                currentTime: nextClip.startTime
+              }));
+            } else {
+              // No next clip, pause
+              stopSync();
+              videoElement.pause();
+              playbackStore.update(state => ({
+                ...state,
+                isPlaying: false
+              }));
+              return; // Don't schedule next frame
+            }
+          }
+        } else {
+          // Playing from media library, just update current time
+          playbackStore.update(state => ({
+            ...state,
+            currentTime
+          }));
+          timelineStore.update(state => ({
+            ...state,
+            playhead: currentTime
+          }));
+
+          // Loop trim range if past trimEnd (for selected timeline clips)
+          if (selectedTimelineClip && trimEnd > 0 && currentTime > trimEnd) {
+            videoElement.currentTime = trimStart;
+          }
+        }
+
+        syncFrameId = requestAnimationFrame(sync);
+      }
+    };
+    sync();
+  }
+
+  /**
+   * Stop RAF-based synchronization
+   */
+  function stopSync() {
+    if (syncFrameId !== null) {
+      cancelAnimationFrame(syncFrameId);
+      syncFrameId = null;
     }
   }
 
@@ -185,6 +206,7 @@
       ...state,
       isPlaying: true
     }));
+    startSync();
   }
 
   function onPause() {
@@ -192,6 +214,7 @@
       ...state,
       isPlaying: false
     }));
+    stopSync();
   }
 </script>
 
@@ -200,7 +223,6 @@
     <video
       bind:this={videoElement}
       src={videoSrc}
-      ontimeupdate={onTimeUpdate}
       onloadedmetadata={onLoadedMetadata}
       onplay={onPlay}
       onpause={onPause}

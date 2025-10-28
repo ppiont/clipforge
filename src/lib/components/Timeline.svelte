@@ -2,6 +2,7 @@
   import { timelineStore } from '../stores/timeline.js';
   import { playbackStore } from '../stores/playback.js';
   import { clipsStore } from '../stores/clips.js';
+  import { undoManager, updateUndoRedoState } from '../stores/undo.js';
   import { Button } from "$lib/components/ui/button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import { ZoomIn, ZoomOut, Maximize2, X } from "@lucide/svelte";
@@ -157,11 +158,16 @@
 
     console.log('Dropping clip on track', trackIndex, 'at time', startTime, timelineClip);
 
+    // Save state for undo
+    undoManager.saveState();
+
     timelineStore.update(state => ({
       ...state,
       clips: [...state.clips, timelineClip],
       duration: Math.max(state.duration, startTime + data.duration)
     }));
+
+    updateUndoRedoState();
   }
 
   /** @param {DragEvent} e
@@ -215,6 +221,9 @@
 
     console.log("Deleting timeline clip:", selectedId);
 
+    // Save state for undo
+    undoManager.saveState();
+
     timelineStore.update(state => {
       const remainingClips = state.clips.filter(c => c.id !== selectedId);
 
@@ -239,17 +248,39 @@
       ...state,
       selectedTimelineClipId: null
     }));
+
+    updateUndoRedoState();
   }
 
   /** Handle keyboard shortcuts */
   function handleKeyDown(e) {
+    // Don't process shortcuts if user is typing in an input
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+      return;
+    }
+
+    // Undo: Ctrl+Z (Windows/Linux) or Cmd+Z (Mac)
+    if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+      e.preventDefault();
+      if (undoManager.undo()) {
+        updateUndoRedoState();
+        console.log('Undo performed');
+      }
+      return;
+    }
+
+    // Redo: Ctrl+Shift+Z or Ctrl+Y (Windows/Linux) or Cmd+Shift+Z (Mac)
+    if ((e.ctrlKey || e.metaKey) && (e.shiftKey && e.key === 'z' || e.key === 'y')) {
+      e.preventDefault();
+      if (undoManager.redo()) {
+        updateUndoRedoState();
+        console.log('Redo performed');
+      }
+      return;
+    }
+
     // Delete or Backspace key
     if (e.key === 'Delete' || e.key === 'Backspace') {
-      // Don't delete if user is typing in an input
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-        return;
-      }
-
       e.preventDefault();
       deleteSelectedTimelineClip();
     }
@@ -360,6 +391,9 @@
     const sourceClip = $clipsStore.find(c => c.id === clip.clipId);
     if (!sourceClip) return;
 
+    // Save state for undo before starting trim
+    undoManager.saveState();
+
     const startX = e.clientX;
     const startTrimValue = side === 'start' ? clip.trimStart : clip.trimEnd;
     const startTimelinePosition = clip.startTime;
@@ -422,6 +456,8 @@
         ...state,
         duration: maxDuration
       }));
+
+      updateUndoRedoState();
     }
 
     document.addEventListener('mousemove', handleMouseMove);

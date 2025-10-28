@@ -45,9 +45,75 @@
 
   /** @param {KeyboardEvent} e */
   function handleKeyPress(e) {
+    // Don't process shortcuts if user is typing in an input
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+      return;
+    }
+
+    // Space: Play/Pause
     if (e.code === 'Space') {
       e.preventDefault();
       togglePlayPause();
+      return;
+    }
+
+    // K: Pause (professional editing standard)
+    if (e.key === 'k' || e.key === 'K') {
+      e.preventDefault();
+      if (videoElement && !videoElement.paused) {
+        videoElement.pause();
+        playbackStore.update(state => ({ ...state, isPlaying: false }));
+      }
+      return;
+    }
+
+    // J: Rewind/Play Backward (for now, just seek backward 1 second)
+    if (e.key === 'j' || e.key === 'J') {
+      e.preventDefault();
+      if (videoElement) {
+        const newTime = Math.max(0, $playbackStore.currentTime - 1);
+        playbackStore.update(state => ({ ...state, currentTime: newTime }));
+        videoElement.currentTime = newTime;
+      }
+      return;
+    }
+
+    // L: Play Forward (for now, play or seek forward 1 second)
+    if (e.key === 'l' || e.key === 'L') {
+      e.preventDefault();
+      if (videoElement) {
+        if (videoElement.paused) {
+          videoElement.play();
+          playbackStore.update(state => ({ ...state, isPlaying: true }));
+        } else {
+          const newTime = Math.min(videoElement.duration || 0, $playbackStore.currentTime + 1);
+          playbackStore.update(state => ({ ...state, currentTime: newTime }));
+          videoElement.currentTime = newTime;
+        }
+      }
+      return;
+    }
+
+    // Left Arrow: Frame backward (0.1 second)
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      if (videoElement) {
+        const newTime = Math.max(0, $playbackStore.currentTime - 0.1);
+        playbackStore.update(state => ({ ...state, currentTime: newTime }));
+        videoElement.currentTime = newTime;
+      }
+      return;
+    }
+
+    // Right Arrow: Frame forward (0.1 second)
+    if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      if (videoElement) {
+        const newTime = Math.min(videoElement.duration || 0, $playbackStore.currentTime + 0.1);
+        playbackStore.update(state => ({ ...state, currentTime: newTime }));
+        videoElement.currentTime = newTime;
+      }
+      return;
     }
   }
 
