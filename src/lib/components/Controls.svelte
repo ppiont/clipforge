@@ -1,4 +1,5 @@
 <script>
+  import { onMount } from 'svelte';
   import { playbackStore } from '../stores/playback.js';
   import { Button } from "$lib/components/ui/button";
   import { Play, Pause, Square, Scissors, Trash2 } from "@lucide/svelte";
@@ -50,7 +51,7 @@
     }
   }
 
-  $effect(() => {
+  onMount(() => {
     window.addEventListener('keydown', handleKeyPress);
     return () => {
       window.removeEventListener('keydown', handleKeyPress);

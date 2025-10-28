@@ -17,11 +17,20 @@
 
   let isDraggingOver = $state(false);
 
-  /** @param {string} clipId */
+  /**
+   * @typedef {Object} Clip
+   * @property {string} id - Unique clip ID
+   * @property {string} filename - Original filename
+   * @property {string} path - File path
+   * @property {number} duration - Duration in seconds
+   * @property {string} resolution - Resolution string
+   */
+
+  /**
+   * @param {string} clipId
+   */
   function selectClip(clipId) {
-    /** @type {any} */
-    const store = playbackStore;
-    store.update((/** @type {any} */ state) => ({
+    playbackStore.update((state) => ({
       ...state,
       // Toggle selection: if already selected, deselect it
       selectedClipId: state.selectedClipId === clipId ? null : clipId,
@@ -29,15 +38,20 @@
     }));
   }
 
-  /** @param {number} seconds */
+  /**
+   * @param {number} seconds
+   * @returns {string}
+   */
   function formatTime(seconds) {
     const m = Math.floor(seconds / 60);
     const s = Math.floor(seconds % 60);
     return `${m}:${s.toString().padStart(2, "0")}`;
   }
 
-  /** @param {DragEvent} e
-   *  @param {{id: string, filename: string, duration: number, path: string}} clip */
+  /**
+   * @param {DragEvent} e
+   * @param {Clip} clip
+   */
   function handleDragStart(e, clip) {
     if (!e.dataTransfer) return;
     console.log("Drag started for clip:", clip.id, clip.filename);
@@ -58,14 +72,14 @@
     e.dataTransfer.setData("text/x-clipforge-clip", "true");
   }
 
-  /** @param {string} clipId */
+  /**
+   * @param {string} clipId
+   */
   function removeClip(clipId) {
-    // @ts-ignore - Store is properly typed, TypeScript inference issue with writable()
     clipsStore.update((clips) => clips.filter((c) => c.id !== clipId));
 
     // If this was the selected clip, clear selection
     if ($playbackStore.selectedClipId === clipId) {
-      // @ts-ignore - Store is properly typed, TypeScript inference issue with writable()
       playbackStore.update((state) => ({
         ...state,
         selectedClipId: null,
@@ -88,21 +102,16 @@
       try {
         const result = await invoke("pick_video_file_by_path", { path: filePath });
 
-        if (result) {
-          /** @type {any} */
-          const store = clipsStore;
-          store.update((/** @type {any} */ clips) => [
+        if (result && typeof result === 'object') {
+          const videoData = result;
+          clipsStore.update((clips) => [
             ...clips,
             {
               id: `clip-${Date.now()}-${Math.random()}`,
-              // @ts-ignore
-              filename: result.filename,
-              // @ts-ignore
-              path: result.path,
-              // @ts-ignore
-              duration: result.duration,
-              // @ts-ignore
-              resolution: result.resolution,
+              filename: videoData.filename ?? '',
+              path: videoData.path ?? filePath,
+              duration: videoData.duration ?? 0,
+              resolution: videoData.resolution ?? 'unknown',
             },
           ]);
         }
@@ -149,10 +158,16 @@
 
       const paths = [];
       for (let i = 0; i < files.length; i++) {
-        // @ts-ignore - File has a path property in Electron/Tauri
-        const file = /** @type {{path?: string}} */ (files[i]);
-        if (file.path) {
-          paths.push(file.path);
+        const file = files.item(i);
+        if (!file) continue;
+
+        // Tauri/Electron adds path property to File objects
+        const fileWithPath = file;
+        if (typeof fileWithPath === 'object' && 'path' in fileWithPath) {
+          const filePath = fileWithPath['path'];
+          if (typeof filePath === 'string') {
+            paths.push(filePath);
+          }
         }
       }
 
@@ -162,15 +177,22 @@
     }
   }
 
+  /**
+   * Handle drag leave event
+   */
   function handleDragLeave() {
     isDraggingOver = false;
   }
 
   /**
-   * NOTE: External file drag-drop is disabled due to Tauri limitation
-   * With dragDropEnabled: false (needed for internal HTML5 drag-drop),
-   * Tauri's file-drop events don't fire. Use Import button instead.
-   * See: https://github.com/tauri-apps/tauri/issues/14373
+   * @typedef {Object} TimelineClip
+   * @property {string} id - Unique timeline clip ID
+   * @property {string} clipId - Reference to clips store
+   * @property {number} track - 0 = main, 1 = overlay
+   * @property {number} startTime - Position on timeline in seconds
+   * @property {number} trimStart - Trim in point in seconds
+   * @property {number} trimEnd - Trim out point in seconds
+   * @property {number} duration - Duration in seconds
    */
 
   /**
@@ -183,7 +205,7 @@
     const clip = $clipsStore.find(c => c.id === clipId);
     if (!clip) return;
 
-    /** @type {{id: string; clipId: string; track: number; startTime: number; trimStart: number; trimEnd: number; duration: number}} */
+    /** @type {TimelineClip} */
     const timelineClip = {
       id: `timeline-clip-${Date.now()}-${Math.random()}`,
       clipId: clip.id,
@@ -196,9 +218,7 @@
 
     console.log('Adding clip to timeline:', timelineClip);
 
-    /** @type {any} */
-    const store = timelineStore;
-    store.update((/** @type {any} */ state) => ({
+    timelineStore.update(state => ({
       ...state,
       clips: [...state.clips, timelineClip],
       duration: state.duration + clip.duration
@@ -221,7 +241,7 @@
     </div>
   </div>
 
-  <ScrollArea class="flex-1 m-3 border rounded-lg">
+  <ScrollArea class={`flex-1 border-2 border-dashed m-3 rounded-lg transition-colors ${isDraggingOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/30'}`}>
     <div class="p-3 space-y-2">
       {#each $clipsStore as clip (clip.id)}
         <Card
@@ -238,7 +258,9 @@
               selectClip(clip.id);
             }
           }}
-          ondragstart={(/** @type {DragEvent} */ e) => handleDragStart(e, clip)}
+          ondragstart={(/** @type {DragEvent} */ e) => {
+            handleDragStart(e, clip);
+          }}
           ondragend={() => console.log("Drag ended")}
           role="button"
           tabindex="0"
@@ -293,7 +315,7 @@
           class="flex flex-col items-center justify-center py-12 text-center text-muted-foreground"
         >
           <p class="text-sm">No clips imported yet</p>
-          <p class="text-xs mt-1">Click Import button above to add videos</p>
+          <p class="text-xs mt-1">Click Import or drag videos here</p>
         </div>
       {/if}
     </div>

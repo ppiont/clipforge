@@ -236,7 +236,7 @@
     }));
   }
 
-  /** @param {KeyboardEvent} e - Handle keyboard shortcuts */
+  /** Handle keyboard shortcuts */
   function handleKeyDown(e) {
     // Delete or Backspace key
     if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -273,15 +273,11 @@
   }
 </script>
 
-<svelte:window onkeydown={handleKeyDown} />
-
-<div class="flex flex-col h-[150px] border-t bg-background">
-  <div
-    class="flex flex-col h-full"
-    tabindex="-1"
-    role="application"
-    aria-label="Timeline container with keyboard shortcuts"
-  >
+<div
+  class="flex flex-col h-[150px] border-t bg-background"
+  onkeydown={handleKeyDown}
+  tabindex="-1"
+>
   <!-- Timeline Controls -->
   <div class="flex items-center gap-2 px-3 py-2 bg-muted border-b h-9">
     <Button variant="ghost" size="sm" onclick={zoom_out} title="Zoom out" class="h-7 w-7 p-0" disabled={false}>
@@ -470,6 +466,5 @@
         </div>
       </div>
     </ScrollArea>
-  </div>
   </div>
 </div>
