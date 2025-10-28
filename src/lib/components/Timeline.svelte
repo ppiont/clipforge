@@ -602,7 +602,7 @@
         <div
           bind:this={track1Element}
           class="relative border-b transition-colors flex flex-1"
-          style="min-height: {BASE_TRACK_HEIGHT}px; max-height: {MAX_TRACK_HEIGHT}px"
+          style="max-height: {MAX_TRACK_HEIGHT}px"
           role="region"
           aria-label="Timeline track 1"
         >
@@ -702,7 +702,7 @@
         <!-- Track 2 (Overlay/PiP) -->
         <div
           class="relative transition-colors flex flex-1"
-          style="min-height: {BASE_TRACK_HEIGHT}px; max-height: {MAX_TRACK_HEIGHT}px"
+          style="max-height: {MAX_TRACK_HEIGHT}px"
           role="region"
           aria-label="Timeline track 2"
         >
