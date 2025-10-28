@@ -668,6 +668,8 @@
   class="flex flex-col h-full border-t bg-background"
   onkeydown={handleKeyDown}
   tabindex="-1"
+  role="application"
+  aria-label="Timeline editor"
 >
   <!-- Timeline Container -->
   <div class="flex flex-col h-full bg-card border-t" bind:this={timelineContainer}>
@@ -689,7 +691,7 @@
             </Button>
           </div>
           <div style="width: {timelineWidth}px" class="relative h-full">
-            {#each getTimeMarkers(effectiveTimelineDuration) as time}
+            {#each getTimeMarkers(effectiveTimelineDuration) as time (time)}
               <div style="left: {time * zoom}px" class="absolute text-[10px] text-muted-foreground border-l border-muted-foreground h-full pt-0.5 px-1">
                 {formatTime(time)}
               </div>
@@ -795,6 +797,9 @@
                 <div
                   class="absolute left-0 top-0 w-2 h-full bg-primary-foreground/30 hover:bg-primary-foreground/50 cursor-ew-resize z-10"
                   onmousedown={(e) => startTrimDrag(e, timelineClip.id, 'start')}
+                  role="slider"
+                  aria-label="Trim clip start"
+                  tabindex="0"
                   title="Trim start"
                 ></div>
 
@@ -806,6 +811,9 @@
                 <div
                   class="absolute right-0 top-0 w-2 h-full bg-primary-foreground/30 hover:bg-primary-foreground/50 cursor-ew-resize z-10"
                   onmousedown={(e) => startTrimDrag(e, timelineClip.id, 'end')}
+                  role="slider"
+                  aria-label="Trim clip end"
+                  tabindex="0"
                   title="Trim end"
                 ></div>
               </div>
@@ -910,6 +918,9 @@
                 <div
                   class="absolute left-0 top-0 w-2 h-full bg-primary-foreground/30 hover:bg-primary-foreground/50 cursor-ew-resize z-10"
                   onmousedown={(e) => startTrimDrag(e, timelineClip.id, 'start')}
+                  role="slider"
+                  aria-label="Trim clip start"
+                  tabindex="0"
                   title="Trim start"
                 ></div>
 
@@ -921,6 +932,9 @@
                 <div
                   class="absolute right-0 top-0 w-2 h-full bg-primary-foreground/30 hover:bg-primary-foreground/50 cursor-ew-resize z-10"
                   onmousedown={(e) => startTrimDrag(e, timelineClip.id, 'end')}
+                  role="slider"
+                  aria-label="Trim clip end"
+                  tabindex="0"
                   title="Trim end"
                 ></div>
               </div>

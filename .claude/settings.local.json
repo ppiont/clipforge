@@ -25,7 +25,9 @@
       "mcp__GitKraken__git_log_or_diff",
       "Bash(cargo check:*)",
       "mcp__svelte__svelte-autofixer",
-      "WebFetch(domain:medium.com)"
+      "WebFetch(domain:medium.com)",
+      "Bash(ffmpeg:*)",
+      "Bash(otool:*)"
     ],
     "deny": [],
     "ask": []

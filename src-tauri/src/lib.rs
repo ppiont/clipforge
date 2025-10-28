@@ -1,4 +1,3 @@
-use ffmpeg_next as ffmpeg;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::process::Command;
@@ -37,41 +36,59 @@ fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
 }
 
-/// Extracts video metadata using FFmpeg Rust bindings
+/// Extracts video metadata using FFmpeg binary with JSON output
 /// Returns duration (in seconds), resolution (WxH), and codec info
 fn extract_video_metadata(file_path: &str) -> Result<VideoMetadata, String> {
-    // Open the file with FFmpeg
-    let input = ffmpeg::format::input(&file_path)
-        .map_err(|e| format!("Failed to open video file: {}", e))?;
+    // Use ffprobe (comes with ffmpeg) to get metadata as JSON
+    let output = Command::new("ffprobe")
+        .args(&[
+            "-v", "quiet",
+            "-print_format", "json",
+            "-show_format",
+            "-show_streams",
+            file_path
+        ])
+        .output()
+        .map_err(|e| format!("Failed to run ffprobe: {}. Make sure FFmpeg is installed.", e))?;
 
-    // Get duration
-    let duration = input.duration() as f64 / ffmpeg::ffi::AV_TIME_BASE as f64;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("ffprobe failed: {}", stderr));
+    }
+
+    let json_str = String::from_utf8_lossy(&output.stdout);
+    let json: serde_json::Value = serde_json::from_str(&json_str)
+        .map_err(|e| format!("Failed to parse ffprobe JSON: {}", e))?;
+
+    // Extract duration from format section
+    let duration = json["format"]["duration"]
+        .as_str()
+        .and_then(|s| s.parse::<f64>().ok())
+        .ok_or_else(|| "Failed to parse duration".to_string())?;
 
     // Find the video stream
-    let stream = input
-        .streams()
-        .best(ffmpeg::media::Type::Video)
-        .ok_or_else(|| "No video stream found in file".to_string())?;
-
-    // Get codec context from stream parameters
-    let codec = ffmpeg::codec::context::Context::from_parameters(stream.parameters())
-        .map_err(|e| format!("Failed to get codec context: {}", e))?;
-
-    // Get codec name before consuming codec
-    let codec_name = codec
-        .codec()
-        .map(|c| c.name().to_string())
-        .unwrap_or_else(|| "unknown".to_string());
-
-    // Get video decoder to access video properties (this consumes codec)
-    let video = codec
-        .decoder()
-        .video()
-        .map_err(|e| format!("Failed to get video decoder: {}", e))?;
+    let video_stream = json["streams"]
+        .as_array()
+        .and_then(|streams| {
+            streams.iter().find(|s| {
+                s["codec_type"].as_str() == Some("video")
+            })
+        })
+        .ok_or_else(|| "No video stream found".to_string())?;
 
     // Get resolution
-    let width = video.width();
-    let height = video.height();
+    let width = video_stream["width"]
+        .as_u64()
+        .ok_or_else(|| "Failed to get width".to_string())?;
+    let height = video_stream["height"]
+        .as_u64()
+        .ok_or_else(|| "Failed to get height".to_string())?;
+
+    // Get codec name
+    let codec_name = video_stream["codec_name"]
+        .as_str()
+        .unwrap_or("unknown")
+        .to_string();
 
     let file_name = PathBuf::from(file_path)
         .file_name()
@@ -364,9 +381,6 @@ fn export_video(request: ExportRequest, clips_data: Vec<VideoMetadata>) -> Resul
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Initialize FFmpeg
-    ffmpeg::init().expect("Failed to initialize FFmpeg");
-
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
