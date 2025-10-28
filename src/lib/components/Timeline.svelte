@@ -568,20 +568,6 @@
   onkeydown={handleKeyDown}
   tabindex="-1"
 >
-  <!-- Timeline Controls -->
-  <div class="flex items-center gap-2 px-3 py-2 bg-muted border-b h-9">
-    <Button variant="ghost" size="sm" onclick={zoom_out} title="Zoom out" class="h-7 w-7 p-0" disabled={false}>
-      <ZoomOut class="w-3 h-3" />
-    </Button>
-    <Button variant="ghost" size="sm" onclick={zoom_reset} title="Reset zoom" class="h-7 px-2" disabled={false}>
-      <Maximize2 class="w-3 h-3" />
-    </Button>
-    <Button variant="ghost" size="sm" onclick={zoom_in} title="Zoom in" class="h-7 w-7 p-0" disabled={false}>
-      <ZoomIn class="w-3 h-3" />
-    </Button>
-    <span class="text-xs text-muted-foreground ml-2 min-w-[30px]">{Math.round(zoom / 100 * 100)}%</span>
-  </div>
-
   <!-- Timeline Container -->
   <div class="flex flex-col flex-1 bg-card border-t" bind:this={timelineContainer}>
     <!-- Timeline Tracks (includes time ruler that scrolls with content) -->
@@ -589,7 +575,18 @@
       <div class="flex flex-col h-full">
         <!-- Time Ruler -->
         <div class="relative h-6 bg-muted border-b flex">
-          <div class="w-[120px] shrink-0 border-r"></div>
+          <!-- Zoom controls in time ruler -->
+          <div class="w-[120px] shrink-0 border-r flex items-center justify-center gap-0.5 px-1">
+            <Button variant="ghost" size="sm" onclick={zoom_out} title="Zoom out" class="h-5 w-5 p-0" disabled={false}>
+              <ZoomOut class="w-3 h-3" />
+            </Button>
+            <Button variant="ghost" size="sm" onclick={zoom_reset} title="Reset zoom" class="h-5 w-5 p-0" disabled={false}>
+              <Maximize2 class="w-3 h-3" />
+            </Button>
+            <Button variant="ghost" size="sm" onclick={zoom_in} title="Zoom in" class="h-5 w-5 p-0" disabled={false}>
+              <ZoomIn class="w-3 h-3" />
+            </Button>
+          </div>
           <div style="width: {timelineWidth}px" class="relative h-full">
             {#each getTimeMarkers(effectiveTimelineDuration) as time}
               <div style="left: {time * zoom}px" class="absolute text-[10px] text-muted-foreground border-l border-muted-foreground h-full pt-0.5 px-1">
