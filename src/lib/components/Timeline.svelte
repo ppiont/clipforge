@@ -565,7 +565,6 @@
 
 <div
   class="flex flex-col h-full border-t bg-background"
-  style="max-height: 204px"
   onkeydown={handleKeyDown}
   tabindex="-1"
 >
