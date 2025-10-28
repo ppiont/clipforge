@@ -38,6 +38,12 @@
   let isDraggingOverTrack2 = $state(false);
   let isDraggingPlayhead = $state(false);
 
+  // Trim drag state - tracks active trim without updating the clip
+  let activeTrimClipId = $state(null);
+  let activeTrimSide = $state(null); // 'start' | 'end'
+  let trimPreviewOffset = $state(0); // pixels offset from original position
+  let isCurrentlyTrimming = $state(false); // disable transitions during drag
+
   // Calculate timeline duration: max of timeline clips duration OR currently selected video duration
   let effectiveTimelineDuration = $derived.by(() => {
     let maxDuration = $timelineStore.duration;
@@ -260,11 +266,28 @@
   /** @param {string} clipId */
   function selectTimelineClip(clipId) {
     console.log("Selected timeline clip:", clipId);
+
+    const clip = $timelineStore.clips.find(c => c.id === clipId);
+    if (!clip) return;
+
+    // Update selection and move playhead to start of clip
     playbackStore.update(state => ({
       ...state,
       selectedTimelineClipId: clipId,
-      selectedClipId: null
+      selectedClipId: null,
+      currentTime: clip.startTime, // Move playhead to clip start
+      isPlaying: false // Pause playback when selecting a clip
     }));
+
+    // Seek video to clip position after a brief delay to allow source to load
+    if (videoElement) {
+      setTimeout(() => {
+        if (videoElement) {
+          videoElement.pause();
+          videoElement.currentTime = clip.trimStart;
+        }
+      }, 100);
+    }
   }
 
   /** Delete selected timeline clip */
@@ -515,6 +538,7 @@
 
   /**
    * Start trimming a clip (dragging left or right edge)
+   * Filmstrip stays static, grey overlay slides to show trim preview
    * @param {MouseEvent} e
    * @param {string} clipId
    * @param {'start' | 'end'} side
@@ -532,57 +556,89 @@
     // Save state for undo before starting trim
     undoManager.saveState();
 
+    // Set active trim state for visual feedback
+    activeTrimClipId = clipId;
+    activeTrimSide = side;
+    trimPreviewOffset = 0;
+    isCurrentlyTrimming = true;
+
     const startX = e.clientX;
     const startTrimValue = side === 'start' ? clip.trimStart : clip.trimEnd;
     const startTimelinePosition = clip.startTime;
+
+    // Store final values to apply on mouseup
+    let finalTrimStart = clip.trimStart;
+    let finalTrimEnd = clip.trimEnd;
+    let finalStartTime = clip.startTime;
 
     /** @param {MouseEvent} moveEvent */
     function handleMouseMove(moveEvent) {
       const deltaX = moveEvent.clientX - startX;
       const deltaTime = deltaX / zoom;
 
+      // Just update the preview offset - don't touch the store
+      trimPreviewOffset = deltaX;
+
+      // Calculate final values for mouseup
       if (side === 'start') {
-        // Trimming from the start
-        const newTrimStart = Math.max(0, Math.min(startTrimValue + deltaTime, clip.trimEnd - 0.1));
-        const newStartTime = startTimelinePosition + deltaTime;
-        const newDuration = clip.trimEnd - newTrimStart;
+        finalTrimStart = Math.max(0, Math.min(startTrimValue + deltaTime, clip.trimEnd - 0.1));
+        finalStartTime = Math.max(0, startTimelinePosition + deltaTime);
 
-        timelineStore.update(state => ({
+        // Update playhead to show the frame at the trim start position
+        playbackStore.update(state => ({
           ...state,
-          clips: state.clips.map(c =>
-            c.id === clipId
-              ? {
-                  ...c,
-                  trimStart: newTrimStart,
-                  startTime: Math.max(0, newStartTime),
-                  duration: newDuration
-                }
-              : c
-          )
+          currentTime: finalStartTime,
+          isPlaying: false
         }));
+
+        // Update video to show the trimmed frame
+        if (videoElement) {
+          videoElement.currentTime = finalTrimStart;
+        }
       } else {
-        // Trimming from the end
-        const newTrimEnd = Math.max(clip.trimStart + 0.1, Math.min(startTrimValue + deltaTime, sourceClip.duration));
-        const newDuration = newTrimEnd - clip.trimStart;
+        finalTrimEnd = Math.max(clip.trimStart + 0.1, Math.min(startTrimValue + deltaTime, sourceClip.duration));
 
-        timelineStore.update(state => ({
+        // Update playhead to show the frame at the trim end position
+        const endTimelinePosition = clip.startTime + (finalTrimEnd - clip.trimStart);
+        playbackStore.update(state => ({
           ...state,
-          clips: state.clips.map(c =>
-            c.id === clipId
-              ? {
-                  ...c,
-                  trimEnd: newTrimEnd,
-                  duration: newDuration
-                }
-              : c
-          )
+          currentTime: endTimelinePosition,
+          isPlaying: false
         }));
+
+        // Update video to show the trimmed frame
+        if (videoElement) {
+          videoElement.currentTime = finalTrimEnd;
+        }
       }
     }
 
     function handleMouseUp() {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
+
+      // Clear preview overlay immediately
+      activeTrimClipId = null;
+      activeTrimSide = null;
+      trimPreviewOffset = 0;
+
+      // Apply the trim changes to the store
+      const newDuration = finalTrimEnd - finalTrimStart;
+
+      timelineStore.update(state => ({
+        ...state,
+        clips: state.clips.map(c =>
+          c.id === clipId
+            ? {
+                ...c,
+                trimStart: finalTrimStart,
+                trimEnd: finalTrimEnd,
+                startTime: finalStartTime,
+                duration: newDuration
+              }
+            : c
+        )
+      }));
 
       // Recalculate timeline duration
       const maxDuration = $timelineStore.clips.reduce((max, c) => {
@@ -596,6 +652,11 @@
       }));
 
       updateUndoRedoState();
+
+      // Re-enable transitions after a brief delay
+      setTimeout(() => {
+        isCurrentlyTrimming = false;
+      }, 300); // Match CSS transition duration
     }
 
     document.addEventListener('mousemove', handleMouseMove);
@@ -683,11 +744,11 @@
             {/if}
             {#each getClipsForTrack(0) as timelineClip (timelineClip.id)}
               <div
-                class={`absolute text-primary-foreground text-xs px-2 rounded flex items-center justify-between cursor-pointer select-none overflow-hidden transition-all hover:brightness-110 ${
+                class={`absolute text-primary-foreground text-xs px-2 rounded flex items-center justify-between cursor-pointer select-none overflow-hidden hover:brightness-110 ${
                   $playbackStore.selectedTimelineClipId === timelineClip.id
-                    ? 'ring-2 ring-ring shadow-lg brightness-110'
+                    ? 'ring-4 ring-primary shadow-2xl brightness-125'
                     : ''
-                }`}
+                } ${activeTrimClipId !== timelineClip.id && !isCurrentlyTrimming ? 'transition-all duration-200 ease-out' : ''}`}
                 style="
                   top: 4px;
                   height: {trackHeight - 8}px;
@@ -714,20 +775,36 @@
                 role="button"
                 tabindex="0"
               >
+                <!-- Grey overlay for trimmed-out area (left side) -->
+                {#if activeTrimClipId === timelineClip.id && activeTrimSide === 'start'}
+                  <div
+                    class="absolute top-0 left-0 h-full bg-black/60 pointer-events-none"
+                    style="width: {Math.max(0, trimPreviewOffset)}px;"
+                  ></div>
+                {/if}
+
+                <!-- Grey overlay for trimmed-out area (right side) -->
+                {#if activeTrimClipId === timelineClip.id && activeTrimSide === 'end'}
+                  <div
+                    class="absolute top-0 right-0 h-full bg-black/60 pointer-events-none"
+                    style="width: {Math.max(0, -trimPreviewOffset)}px;"
+                  ></div>
+                {/if}
+
                 <!-- Left trim handle -->
                 <div
-                  class="absolute left-0 top-0 w-2 h-full bg-primary-foreground/30 hover:bg-primary-foreground/50 cursor-ew-resize"
+                  class="absolute left-0 top-0 w-2 h-full bg-primary-foreground/30 hover:bg-primary-foreground/50 cursor-ew-resize z-10"
                   onmousedown={(e) => startTrimDrag(e, timelineClip.id, 'start')}
                   title="Trim start"
                 ></div>
 
-                <span class="truncate text-xs flex-1 px-1">
+                <span class="truncate text-xs flex-1 px-1 relative z-0">
                   {getClipFilename(timelineClip.clipId)}
                 </span>
 
                 <!-- Right trim handle -->
                 <div
-                  class="absolute right-0 top-0 w-2 h-full bg-primary-foreground/30 hover:bg-primary-foreground/50 cursor-ew-resize"
+                  class="absolute right-0 top-0 w-2 h-full bg-primary-foreground/30 hover:bg-primary-foreground/50 cursor-ew-resize z-10"
                   onmousedown={(e) => startTrimDrag(e, timelineClip.id, 'end')}
                   title="Trim end"
                 ></div>
@@ -782,11 +859,11 @@
             {/if}
             {#each getClipsForTrack(1) as timelineClip (timelineClip.id)}
               <div
-                class={`absolute text-primary-foreground text-xs px-2 rounded flex items-center justify-between cursor-pointer select-none overflow-hidden transition-all hover:brightness-110 ${
+                class={`absolute text-primary-foreground text-xs px-2 rounded flex items-center justify-between cursor-pointer select-none overflow-hidden hover:brightness-110 ${
                   $playbackStore.selectedTimelineClipId === timelineClip.id
-                    ? 'ring-2 ring-ring shadow-lg brightness-110'
+                    ? 'ring-4 ring-primary shadow-2xl brightness-125'
                     : ''
-                }`}
+                } ${activeTrimClipId !== timelineClip.id && !isCurrentlyTrimming ? 'transition-all duration-200 ease-out' : ''}`}
                 style="
                   top: 4px;
                   height: {trackHeight - 8}px;
@@ -813,20 +890,36 @@
                 role="button"
                 tabindex="0"
               >
+                <!-- Grey overlay for trimmed-out area (left side) -->
+                {#if activeTrimClipId === timelineClip.id && activeTrimSide === 'start'}
+                  <div
+                    class="absolute top-0 left-0 h-full bg-black/60 pointer-events-none"
+                    style="width: {Math.max(0, trimPreviewOffset)}px;"
+                  ></div>
+                {/if}
+
+                <!-- Grey overlay for trimmed-out area (right side) -->
+                {#if activeTrimClipId === timelineClip.id && activeTrimSide === 'end'}
+                  <div
+                    class="absolute top-0 right-0 h-full bg-black/60 pointer-events-none"
+                    style="width: {Math.max(0, -trimPreviewOffset)}px;"
+                  ></div>
+                {/if}
+
                 <!-- Left trim handle -->
                 <div
-                  class="absolute left-0 top-0 w-2 h-full bg-primary-foreground/30 hover:bg-primary-foreground/50 cursor-ew-resize"
+                  class="absolute left-0 top-0 w-2 h-full bg-primary-foreground/30 hover:bg-primary-foreground/50 cursor-ew-resize z-10"
                   onmousedown={(e) => startTrimDrag(e, timelineClip.id, 'start')}
                   title="Trim start"
                 ></div>
 
-                <span class="truncate text-xs flex-1 px-1">
+                <span class="truncate text-xs flex-1 px-1 relative z-0">
                   {getClipFilename(timelineClip.clipId)}
                 </span>
 
                 <!-- Right trim handle -->
                 <div
-                  class="absolute right-0 top-0 w-2 h-full bg-primary-foreground/30 hover:bg-primary-foreground/50 cursor-ew-resize"
+                  class="absolute right-0 top-0 w-2 h-full bg-primary-foreground/30 hover:bg-primary-foreground/50 cursor-ew-resize z-10"
                   onmousedown={(e) => startTrimDrag(e, timelineClip.id, 'end')}
                   title="Trim end"
                 ></div>

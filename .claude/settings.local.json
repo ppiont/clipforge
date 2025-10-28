@@ -18,7 +18,14 @@
       "WebFetch(domain:shadcn-svelte.com)",
       "Bash(bun run build:*)",
       "WebFetch(domain:github.com)",
-      "Bash(bun add:*)"
+      "Bash(bun add:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(pkill:*)",
+      "mcp__GitKraken__git_log_or_diff",
+      "Bash(cargo check:*)",
+      "mcp__svelte__svelte-autofixer",
+      "WebFetch(domain:medium.com)"
     ],
     "deny": [],
     "ask": []
