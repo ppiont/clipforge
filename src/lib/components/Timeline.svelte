@@ -56,25 +56,65 @@
   let timelineWidth = $derived(effectiveTimelineDuration * zoom);
   let playheadPosition = $derived($playbackStore.currentTime * zoom);
 
-  /** @param {number} duration */
+  /**
+   * Get time markers based on duration and zoom level
+   * Dynamically adjusts marker density for optimal readability
+   * @param {number} duration - Timeline duration in seconds
+   * @returns {number[]} Array of time values for markers
+   */
   function getTimeMarkers(duration) {
     const markers = [];
     // If timeline is empty (only default duration), just show 0:00
     if ($timelineStore.clips.length === 0) {
       return [0];
     }
-    const step = duration > 60 ? 10 : 5;
+
+    // Target: 80-150px between markers for good readability
+    const MIN_MARKER_SPACING = 80; // pixels
+
+    // Calculate optimal step based on zoom level
+    // At current zoom, how many seconds fit in MIN_MARKER_SPACING pixels?
+    const secondsPerMinSpacing = MIN_MARKER_SPACING / zoom;
+
+    // Choose step from nice round intervals: 0.1s, 0.5s, 1s, 2s, 5s, 10s, 30s, 60s, 120s
+    const niceIntervals = [0.1, 0.5, 1, 2, 5, 10, 30, 60, 120, 300, 600];
+    let step = niceIntervals[niceIntervals.length - 1]; // Default to largest
+
+    for (const interval of niceIntervals) {
+      if (interval >= secondsPerMinSpacing) {
+        step = interval;
+        break;
+      }
+    }
+
+    // Generate markers
     for (let i = 0; i <= Math.ceil(duration); i += step) {
       markers.push(i);
     }
+
     return markers;
   }
 
-  /** @param {number} seconds */
+  /**
+   * Format time for display on ruler
+   * Shows subsecond precision when zoomed in
+   * @param {number} seconds - Time in seconds
+   * @returns {string} Formatted time string
+   */
   function formatTime(seconds) {
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
     const s = Math.floor(seconds % 60);
+    const ms = Math.floor((seconds % 1) * 10); // tenths of a second
+
+    // Show subseconds when zoomed in enough (> 200 pixels per second)
+    if (zoom > 200 && ms > 0) {
+      if (h > 0) {
+        return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${ms}`;
+      }
+      return `${m}:${s.toString().padStart(2, '0')}.${ms}`;
+    }
+
     if (h > 0) {
       return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
     }
