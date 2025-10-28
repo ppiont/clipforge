@@ -7,6 +7,7 @@ import { writable } from 'svelte/store';
  * @property {string} path - File path
  * @property {number} duration - Duration in seconds
  * @property {string} resolution - Resolution string (e.g., "1920x1080")
+ * @property {string} [codec] - Optional video codec
  */
 
 /** @type {import('svelte/store').Writable<Clip[]>} */

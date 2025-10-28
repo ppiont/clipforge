@@ -27,15 +27,58 @@
    */
 
   /**
+   * @typedef {Object} PlaybackState
+   * @property {boolean} isPlaying
+   * @property {number} currentTime
+   * @property {string | null} selectedClipId
+   * @property {string | null} selectedTimelineClipId
+   */
+
+  /**
+   * @typedef {Object} TimelineClip
+   * @property {string} id - Unique timeline clip ID
+   * @property {string} clipId - Reference to clips store
+   * @property {number} track - 0 = main, 1 = overlay
+   * @property {number} startTime - Position on timeline in seconds
+   * @property {number} trimStart - Trim in point in seconds
+   * @property {number} trimEnd - Trim out point in seconds
+   * @property {number} duration - Duration in seconds
+   */
+
+  /**
+   * @typedef {Object} TimelineState
+   * @property {TimelineClip[]} clips - Clips on timeline
+   * @property {number} playhead - Current playhead position
+   * @property {number} duration - Total timeline duration
+   */
+
+  // Type-safe store access
+  const clips = /** @type {import('svelte/store').Writable<Clip[]>} */ (
+    clipsStore
+  );
+  const playback =
+    /** @type {import('svelte/store').Writable<PlaybackState>} */ (
+      playbackStore
+    );
+  const timeline =
+    /** @type {import('svelte/store').Writable<TimelineState>} */ (
+      timelineStore
+    );
+
+  /**
    * @param {string} clipId
    */
   function selectClip(clipId) {
-    playbackStore.update((state) => ({
-      ...state,
-      // Toggle selection: if already selected, deselect it
-      selectedClipId: state.selectedClipId === clipId ? null : clipId,
-      selectedTimelineClipId: null,
-    }));
+    playback.update((state) => {
+      /** @type {PlaybackState} */
+      const newState = {
+        ...state,
+        // Toggle selection: if already selected, deselect it
+        selectedClipId: state.selectedClipId === clipId ? null : clipId,
+        selectedTimelineClipId: null,
+      };
+      return newState;
+    });
   }
 
   /**
@@ -76,14 +119,22 @@
    * @param {string} clipId
    */
   function removeClip(clipId) {
-    clipsStore.update((clips) => clips.filter((c) => c.id !== clipId));
+    clips.update((currentClips) => {
+      /** @type {Clip[]} */
+      const filtered = currentClips.filter((c) => c.id !== clipId);
+      return filtered;
+    });
 
     // If this was the selected clip, clear selection
     if ($playbackStore.selectedClipId === clipId) {
-      playbackStore.update((state) => ({
-        ...state,
-        selectedClipId: null,
-      }));
+      playback.update((state) => {
+        /** @type {PlaybackState} */
+        const newState = {
+          ...state,
+          selectedClipId: null,
+        };
+        return newState;
+      });
     }
   }
 
@@ -100,20 +151,28 @@
       if (!isVideo) continue;
 
       try {
-        const result = await invoke("pick_video_file_by_path", { path: filePath });
+        const result = await invoke("pick_video_file_by_path", {
+          path: filePath,
+        });
 
-        if (result && typeof result === 'object') {
-          const videoData = result;
-          clipsStore.update((clips) => [
-            ...clips,
-            {
+        if (result && typeof result === "object") {
+          const videoData =
+            /** @type {{ filename?: string; path?: string; duration?: number; resolution?: string }} */ (
+              result
+            );
+          clips.update((currentClips) => {
+            /** @type {Clip} */
+            const newClip = {
               id: `clip-${Date.now()}-${Math.random()}`,
-              filename: videoData.filename ?? '',
+              filename: videoData.filename ?? "",
               path: videoData.path ?? filePath,
               duration: videoData.duration ?? 0,
-              resolution: videoData.resolution ?? 'unknown',
-            },
-          ]);
+              resolution: videoData.resolution ?? "unknown",
+            };
+            /** @type {Clip[]} */
+            const updated = [...currentClips, newClip];
+            return updated;
+          });
         }
       } catch (err) {
         console.error("Error importing dropped file:", err);
@@ -128,14 +187,14 @@
   function handleExternalDragOver(e) {
     // Check if this is an external file drag (not internal clip drag)
     const types = e.dataTransfer?.types || [];
-    const isFileDrag = types.includes('Files');
+    const isFileDrag = types.includes("Files");
 
     if (isFileDrag) {
       e.preventDefault();
       e.stopPropagation();
       isDraggingOver = true;
       if (e.dataTransfer) {
-        e.dataTransfer.dropEffect = 'copy';
+        e.dataTransfer.dropEffect = "copy";
       }
     }
   }
@@ -146,7 +205,7 @@
    */
   async function handleExternalDrop(e) {
     const types = e.dataTransfer?.types || [];
-    const isFileDrag = types.includes('Files');
+    const isFileDrag = types.includes("Files");
 
     if (isFileDrag) {
       e.preventDefault();
@@ -163,9 +222,9 @@
 
         // Tauri/Electron adds path property to File objects
         const fileWithPath = file;
-        if (typeof fileWithPath === 'object' && 'path' in fileWithPath) {
-          const filePath = fileWithPath['path'];
-          if (typeof filePath === 'string') {
+        if (typeof fileWithPath === "object" && "path" in fileWithPath) {
+          const filePath = fileWithPath["path"];
+          if (typeof filePath === "string") {
             paths.push(filePath);
           }
         }
@@ -185,24 +244,13 @@
   }
 
   /**
-   * @typedef {Object} TimelineClip
-   * @property {string} id - Unique timeline clip ID
-   * @property {string} clipId - Reference to clips store
-   * @property {number} track - 0 = main, 1 = overlay
-   * @property {number} startTime - Position on timeline in seconds
-   * @property {number} trimStart - Trim in point in seconds
-   * @property {number} trimEnd - Trim out point in seconds
-   * @property {number} duration - Duration in seconds
-   */
-
-  /**
    * Workaround: Add clip to timeline at the end
    * TODO: Re-enable drag-drop when Tauri issue is resolved
    * @param {string} clipId
    * @param {number} trackIndex
    */
   function addToTimeline(clipId, trackIndex) {
-    const clip = $clipsStore.find(c => c.id === clipId);
+    const clip = $clipsStore.find((c) => c.id === clipId);
     if (!clip) return;
 
     /** @type {TimelineClip} */
@@ -213,16 +261,22 @@
       startTime: $timelineStore.duration, // Add at end
       trimStart: 0,
       trimEnd: clip.duration,
-      duration: clip.duration
+      duration: clip.duration,
     };
 
-    console.log('Adding clip to timeline:', timelineClip);
+    console.log("Adding clip to timeline:", timelineClip);
 
-    timelineStore.update(state => ({
-      ...state,
-      clips: [...state.clips, timelineClip],
-      duration: state.duration + clip.duration
-    }));
+    timeline.update((state) => {
+      /** @type {TimelineClip[]} */
+      const updatedClips = [...state.clips, timelineClip];
+      /** @type {TimelineState} */
+      const newState = {
+        ...state,
+        clips: updatedClips,
+        duration: state.duration + clip.duration,
+      };
+      return newState;
+    });
   }
 </script>
 
@@ -241,7 +295,9 @@
     </div>
   </div>
 
-  <ScrollArea class={`flex-1 border-2 border-dashed m-3 rounded-lg transition-colors ${isDraggingOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/30'}`}>
+  <ScrollArea
+    class={`flex-1 border-2 border-dashed m-3 rounded-lg transition-colors ${isDraggingOver ? "border-primary bg-primary/5" : "border-muted-foreground/30"}`}
+  >
     <div class="p-3 space-y-2">
       {#each $clipsStore as clip (clip.id)}
         <Card
