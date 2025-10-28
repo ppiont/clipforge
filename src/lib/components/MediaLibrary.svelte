@@ -160,19 +160,42 @@
             /** @type {{ filename?: string; path?: string; duration?: number; resolution?: string }} */ (
               result
             );
+
+          const clipId = `clip-${Date.now()}-${Math.random()}`;
+
+          /** @type {Clip} */
+          const newClip = {
+            id: clipId,
+            filename: videoData.filename ?? "",
+            path: videoData.path ?? filePath,
+            duration: videoData.duration ?? 0,
+            resolution: videoData.resolution ?? "unknown",
+          };
+
           clips.update((currentClips) => {
-            /** @type {Clip} */
-            const newClip = {
-              id: `clip-${Date.now()}-${Math.random()}`,
-              filename: videoData.filename ?? "",
-              path: videoData.path ?? filePath,
-              duration: videoData.duration ?? 0,
-              resolution: videoData.resolution ?? "unknown",
-            };
             /** @type {Clip[]} */
             const updated = [...currentClips, newClip];
             return updated;
           });
+
+          // Generate thumbnail asynchronously (at 1 second into video)
+          try {
+            const thumbnailTimestamp = Math.min(1.0, videoData.duration ?? 1.0);
+            const thumbnail = await invoke("generate_thumbnail", {
+              videoPath: filePath,
+              timestamp: thumbnailTimestamp
+            });
+
+            // Update the clip with thumbnail
+            clips.update((currentClips) => {
+              return currentClips.map(c =>
+                c.id === clipId ? { ...c, thumbnail: String(thumbnail) } : c
+              );
+            });
+          } catch (err) {
+            console.error("Error generating thumbnail:", err);
+            // Continue without thumbnail
+          }
         }
       } catch (err) {
         console.error("Error importing dropped file:", err);
@@ -324,9 +347,17 @@
         >
           <div class="flex gap-3 items-center">
             <div
-              class="shrink-0 w-10 h-10 bg-muted rounded flex items-center justify-center"
+              class="shrink-0 w-20 h-[45px] bg-muted rounded flex items-center justify-center overflow-hidden"
             >
-              <Video class="w-5 h-5 text-muted-foreground" />
+              {#if clip.thumbnail}
+                <img
+                  src={clip.thumbnail}
+                  alt={clip.filename}
+                  class="w-full h-full object-cover"
+                />
+              {:else}
+                <Video class="w-5 h-5 text-muted-foreground" />
+              {/if}
             </div>
             <div class="flex-1 min-w-0">
               <p class="text-sm font-medium truncate">{clip.filename}</p>

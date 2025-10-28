@@ -112,6 +112,84 @@ fn pick_video_file_by_path(path: String) -> Result<VideoMetadata, String> {
     extract_video_metadata(&path)
 }
 
+/// Generate a thumbnail image from a video file at a specific timestamp
+/// Returns the base64-encoded PNG image data URL
+#[tauri::command]
+fn generate_thumbnail(video_path: String, timestamp: f64) -> Result<String, String> {
+    use std::fs;
+    use std::env;
+
+    // Create temp directory for thumbnails if it doesn't exist
+    let temp_dir = env::temp_dir().join("clipforge_thumbnails");
+    fs::create_dir_all(&temp_dir)
+        .map_err(|e| format!("Failed to create temp directory: {}", e))?;
+
+    // Generate unique filename for thumbnail
+    let thumbnail_filename = format!("thumb_{}_{}.png",
+        PathBuf::from(&video_path)
+            .file_stem()
+            .unwrap_or_default()
+            .to_string_lossy(),
+        timestamp.round() as i64
+    );
+    let thumbnail_path = temp_dir.join(thumbnail_filename);
+
+    // Use FFmpeg to extract frame at timestamp
+    let output = Command::new("ffmpeg")
+        .arg("-y") // Overwrite existing file
+        .arg("-ss").arg(timestamp.to_string()) // Seek to timestamp
+        .arg("-i").arg(&video_path) // Input file
+        .arg("-vframes").arg("1") // Extract 1 frame
+        .arg("-vf").arg("scale=160:90") // Scale to thumbnail size (16:9 aspect ratio)
+        .arg("-q:v").arg("2") // High quality
+        .arg(thumbnail_path.to_string_lossy().to_string())
+        .output()
+        .map_err(|e| format!("Failed to run FFmpeg: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("FFmpeg thumbnail generation failed: {}", stderr));
+    }
+
+    // Read the thumbnail file and convert to base64 data URL
+    let thumbnail_data = fs::read(&thumbnail_path)
+        .map_err(|e| format!("Failed to read thumbnail file: {}", e))?;
+
+    // Convert to base64
+    let base64_data = base64_encode(&thumbnail_data);
+    let data_url = format!("data:image/png;base64,{}", base64_data);
+
+    // Clean up thumbnail file (optional, could keep for caching)
+    let _ = fs::remove_file(&thumbnail_path);
+
+    Ok(data_url)
+}
+
+/// Simple base64 encoding function
+fn base64_encode(data: &[u8]) -> String {
+    const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut result = String::new();
+
+    for chunk in data.chunks(3) {
+        let mut buf = [0u8; 3];
+        for (i, &byte) in chunk.iter().enumerate() {
+            buf[i] = byte;
+        }
+
+        let b1 = (buf[0] >> 2) as usize;
+        let b2 = (((buf[0] & 0x03) << 4) | (buf[1] >> 4)) as usize;
+        let b3 = (((buf[1] & 0x0f) << 2) | (buf[2] >> 6)) as usize;
+        let b4 = (buf[2] & 0x3f) as usize;
+
+        result.push(CHARS[b1] as char);
+        result.push(CHARS[b2] as char);
+        result.push(if chunk.len() > 1 { CHARS[b3] as char } else { '=' });
+        result.push(if chunk.len() > 2 { CHARS[b4] as char } else { '=' });
+    }
+
+    result
+}
+
 /// Export video timeline to MP4 using FFmpeg
 /// For MVP: Simple implementation that handles single clips
 /// TODO: Add multi-clip concatenation and overlay support
@@ -195,6 +273,7 @@ pub fn run() {
             greet,
             pick_video_file,
             pick_video_file_by_path,
+            generate_thumbnail,
             export_video
         ])
         .run(tauri::generate_context!())

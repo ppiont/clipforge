@@ -8,6 +8,7 @@ import { writable } from 'svelte/store';
  * @property {number} duration - Duration in seconds
  * @property {string} resolution - Resolution string (e.g., "1920x1080")
  * @property {string} [codec] - Optional video codec
+ * @property {string} [thumbnail] - Optional thumbnail data URL (base64-encoded image)
  */
 
 /** @type {import('svelte/store').Writable<Clip[]>} */
