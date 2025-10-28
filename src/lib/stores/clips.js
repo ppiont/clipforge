@@ -10,4 +10,6 @@ import { writable } from 'svelte/store';
  */
 
 /** @type {import('svelte/store').Writable<Clip[]>} */
-export const clipsStore = writable([]);
+export const clipsStore = writable(
+  /** @type {Clip[]} */ []
+);

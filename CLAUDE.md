@@ -78,6 +78,8 @@ Action Buttons (40px):
 - **Build Tool**: FFmpeg for video processing
 - **Package Manager**: Bun
 - **TypeScript**: Strict mode enabled
+- **UI Components**: shadcn-svelte (always use these components)
+- **Icons**: @lucide/svelte (always use Lucide icons, never emojis)
 
 ## Frontend Architecture
 
@@ -167,6 +169,21 @@ fn open_recorder_window(app: tauri::AppHandle) {
 ```
 
 ## FFmpeg Integration
+
+### Video Metadata Extraction (Rust Bindings)
+
+**Architecture Decision**: Using `ffmpeg-next` crate (Rust bindings) instead of CLI
+- **Version**: 8.0.0 (compatible with FFmpeg 8.x installed via Homebrew)
+- **Requirement**: FFmpeg 8.x must be installed: `brew install ffmpeg`
+- **Pros**: Native performance, better error handling, type-safe API
+- **Cons**: Requires system FFmpeg installation, adds build dependencies
+- **Alternative**: Could use ffprobe CLI if bundling binaries separately (more complex)
+
+**Implementation**:
+- Initialize FFmpeg once at startup: `ffmpeg::init()`
+- Extract metadata in `src-tauri/src/lib.rs:extract_video_metadata()`
+- Get duration, resolution, codec from video streams
+- Automatically bundled when building the Tauri app
 
 ### Common Export Commands
 
@@ -334,6 +351,13 @@ Focus testing on:
 - Recording requires web APIs (getDisplayMedia, getUserMedia)
 - Canvas rendering requires web context (can't do in Rust)
 
+## Documentation Best Practices
+
+**Always use Context7 MCP for up-to-date library documentation:**
+- Use `mcp__context7__resolve-library-id` to find the library (Tauri, Svelte, etc.)
+- Use `mcp__context7__get-library-docs` to fetch current documentation with specific topics
+- This ensures you get accurate, latest API documentation instead of guessing
+- Especially important for Rust crates, npm packages, and framework APIs where versions matter
 
 You are able to use the Svelte MCP server, where you have access to comprehensive Svelte 5 and SvelteKit documentation. Here's how to use the available tools effectively:
 

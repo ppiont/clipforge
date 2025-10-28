@@ -10,18 +10,29 @@
   import Timeline from '../components/Timeline.svelte';
   import Controls from '../components/Controls.svelte';
   import ExportModal from '../components/ExportModal.svelte';
+  import { clipsStore } from '../stores/clips.js';
   import { invoke } from '@tauri-apps/api/core';
 
-  /** @type {HTMLVideoElement | null} */
-  let videoElement = null;
-  let showExportModal = false;
+  let videoElement = $state(null);
+  let showExportModal = $state(false);
 
   async function handleImportClick() {
     try {
       const result = await invoke('pick_video_file');
       if (result) {
-        console.log('Selected file:', result);
-        // Task 2.1-2.2: Handle video import
+        console.log('Imported video:', result);
+
+        // Add to clipsStore
+        clipsStore.update(clips => [
+          ...clips,
+          {
+            id: `clip-${Date.now()}`,
+            filename: result.filename,
+            path: result.path,
+            duration: result.duration,
+            resolution: result.resolution
+          }
+        ]);
       }
     } catch (err) {
       console.error('Error picking file:', err);

@@ -8,12 +8,14 @@ import { writable } from 'svelte/store';
  * @property {string | null} selectedTimelineClipId - Currently selected clip on timeline
  */
 
-/** @type {import('svelte/store').Writable<PlaybackState>} */
+/**
+ * @type {import('svelte/store').Writable<PlaybackState>}
+ */
 export const playbackStore = writable(
-  /** @type {PlaybackState} */ ({
+  /** @satisfies {PlaybackState} */ ({
     isPlaying: false,
     currentTime: 0,
-    selectedClipId: /** @type {string | null} */ (null),
-    selectedTimelineClipId: /** @type {string | null} */ (null),
+    selectedClipId: /** @type {null} */ (null),
+    selectedTimelineClipId: /** @type {null} */ (null),
   })
 );

@@ -2,6 +2,7 @@
   import { clipsStore } from '../stores/clips.js';
   import { playbackStore } from '../stores/playback.js';
   import { timelineStore } from '../stores/timeline.js';
+  import { convertFileSrc } from '@tauri-apps/api/core';
 
   /**
    * Preview Component
@@ -23,6 +24,11 @@
       /** @param {{id: string; filename: string; path: string; duration: number; resolution: string}} c */
       c => c.id === $playbackStore.selectedClipId
     ))
+  );
+
+  // Convert file path to Tauri asset URL
+  let videoSrc = $derived(
+    selectedClip ? convertFileSrc(selectedClip.path) : ''
   );
 
   // Get selected timeline clip and its trim data
@@ -99,10 +105,10 @@
 </script>
 
 <div class="relative w-full h-full bg-black rounded overflow-hidden flex items-center justify-center aspect-video">
-  {#if displayClip}
+  {#if displayClip && videoSrc}
     <video
       bind:this={videoElement}
-      src={displayClip.path}
+      src={videoSrc}
       ontimeupdate={onTimeUpdate}
       onloadedmetadata={onLoadedMetadata}
       onplay={onPlay}
@@ -114,9 +120,6 @@
     >
       <track kind="captions" />
     </video>
-    <div class="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded font-mono">
-      {formatTime(currentTime)} / {formatTime(duration)}
-    </div>
   {:else}
     <div class="flex flex-col items-center justify-center w-full h-full text-gray-500 text-center">
       <p class="text-sm">No clip selected</p>

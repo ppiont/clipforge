@@ -7,7 +7,15 @@
       "Bash(bun run check:*)",
       "Bash(cargo clean:*)",
       "mcp__GitKraken__git_branch",
-      "mcp__GitKraken__git_checkout"
+      "mcp__GitKraken__git_checkout",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__get-library-docs",
+      "Bash(brew install:*)",
+      "Bash(bun run tauri:*)",
+      "mcp__ide__getDiagnostics",
+      "WebFetch(domain:tauri.app)",
+      "WebSearch",
+      "WebFetch(domain:shadcn-svelte.com)"
     ],
     "deny": [],
     "ask": []
