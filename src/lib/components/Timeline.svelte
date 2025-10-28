@@ -1,11 +1,12 @@
 <script>
   import { timelineStore } from '../stores/timeline.js';
   import { playbackStore } from '../stores/playback.js';
-  import { clipsStore } from '../stores/clips.js';
+  import { clipsStore, generateFilmstripForClip } from '../stores/clips.js';
   import { undoManager, updateUndoRedoState } from '../stores/undo.js';
   import { Button } from "$lib/components/ui/button";
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import { ZoomIn, ZoomOut, Maximize2, X } from "@lucide/svelte";
+  import { convertFileSrc } from '@tauri-apps/api/core';
 
   /**
    * Timeline Component
@@ -296,6 +297,72 @@
     return $clipsStore.find(c => c.id === clipId)?.filename || 'Unknown';
   }
 
+  /**
+   * Get filmstrip background style for a timeline clip
+   * @param {string} clipId - Source clip ID
+   * @param {number} trimStart - Trim start time in seconds
+   * @param {number} trimEnd - Trim end time in seconds
+   * @param {number} clipWidth - Width of clip in pixels
+   * @returns {string} CSS background style
+   */
+  function getFilmstripStyle(clipId, trimStart, trimEnd, clipWidth) {
+    const sourceClip = $clipsStore.find(c => c.id === clipId);
+    if (!sourceClip) return '';
+
+    // Use thumbnail as fallback if filmstrip not available
+    if (!sourceClip.filmstrip && sourceClip.thumbnail) {
+      return `background-image: url(${sourceClip.thumbnail}); background-size: cover; background-position: center;`;
+    }
+
+    if (!sourceClip.filmstrip) return '';
+
+    const filmstripUrl = convertFileSrc(sourceClip.filmstrip);
+    const frameCount = sourceClip.filmstripFrameCount || 20;
+    const frameHeight = 45; // Track height in pixels
+    const frameWidth = 120; // Individual thumbnail width
+
+    // How many frames can fit in the visible clip width?
+    const visibleFrameCount = Math.ceil(clipWidth / frameWidth);
+
+    // Calculate which frames to show based on trim
+    const clipDuration = trimEnd - trimStart;
+    const sourceDuration = sourceClip.duration;
+
+    // Build background style with multiple positioned backgrounds
+    const backgrounds = [];
+    for (let i = 0; i < visibleFrameCount; i++) {
+      // Time in the trimmed clip
+      const timeInClip = (i * clipDuration) / visibleFrameCount;
+      // Corresponding time in source video
+      const timeInSource = trimStart + timeInClip;
+
+      // Which frame index in our filmstrip?
+      const frameIndex = Math.floor((timeInSource / sourceDuration) * frameCount);
+      const clampedIndex = Math.max(0, Math.min(frameIndex, frameCount - 1));
+
+      // Position this frame
+      const xPos = i * frameWidth;
+      const yPos = -clampedIndex * frameHeight;
+
+      backgrounds.push(`url(${filmstripUrl}) ${xPos}px ${yPos}px / ${frameWidth}px ${frameHeight * frameCount}px no-repeat`);
+    }
+
+    return `background: ${backgrounds.join(', ')};`;
+  }
+
+  // Auto-generate filmstrips for clips on timeline
+  $effect(() => {
+    const timelineClipIds = new Set($timelineStore.clips.map(tc => tc.clipId));
+
+    timelineClipIds.forEach(clipId => {
+      const sourceClip = $clipsStore.find(c => c.id === clipId);
+      if (sourceClip && !sourceClip.filmstrip) {
+        console.log(`Auto-generating filmstrip for clip: ${clipId}`);
+        generateFilmstripForClip(clipId);
+      }
+    });
+  });
+
   function zoom_in() {
     zoom = Math.min(zoom + 10, MAX_ZOOM);
   }
@@ -546,7 +613,7 @@
             {/if}
             {#each getClipsForTrack(0) as timelineClip (timelineClip.id)}
               <div
-                class={`absolute top-1 h-7 bg-primary text-primary-foreground text-xs px-2 rounded flex items-center justify-between cursor-pointer select-none overflow-visible transition-all hover:brightness-110 ${
+                class={`absolute top-1 h-7 text-primary-foreground text-xs px-2 rounded flex items-center justify-between cursor-pointer select-none overflow-hidden transition-all hover:brightness-110 ${
                   $playbackStore.selectedTimelineClipId === timelineClip.id
                     ? 'ring-2 ring-ring shadow-lg brightness-110'
                     : ''
@@ -554,6 +621,12 @@
                 style="
                   left: {timelineClip.startTime * zoom}px;
                   width: {(timelineClip.trimEnd - timelineClip.trimStart) * zoom}px;
+                  {getFilmstripStyle(
+                    timelineClip.clipId,
+                    timelineClip.trimStart,
+                    timelineClip.trimEnd,
+                    (timelineClip.trimEnd - timelineClip.trimStart) * zoom
+                  )}
                 "
                 onclick={(e) => {
                   e.stopPropagation();
@@ -635,7 +708,7 @@
             {/if}
             {#each getClipsForTrack(1) as timelineClip (timelineClip.id)}
               <div
-                class={`absolute top-1 h-7 bg-primary text-primary-foreground text-xs px-2 rounded flex items-center justify-between cursor-pointer select-none overflow-visible transition-all hover:brightness-110 ${
+                class={`absolute top-1 h-7 text-primary-foreground text-xs px-2 rounded flex items-center justify-between cursor-pointer select-none overflow-hidden transition-all hover:brightness-110 ${
                   $playbackStore.selectedTimelineClipId === timelineClip.id
                     ? 'ring-2 ring-ring shadow-lg brightness-110'
                     : ''
@@ -643,6 +716,12 @@
                 style="
                   left: {timelineClip.startTime * zoom}px;
                   width: {(timelineClip.trimEnd - timelineClip.trimStart) * zoom}px;
+                  {getFilmstripStyle(
+                    timelineClip.clipId,
+                    timelineClip.trimStart,
+                    timelineClip.trimEnd,
+                    (timelineClip.trimEnd - timelineClip.trimStart) * zoom
+                  )}
                 "
                 onclick={(e) => {
                   e.stopPropagation();

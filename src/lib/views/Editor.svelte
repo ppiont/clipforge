@@ -10,7 +10,7 @@
   import Timeline from '../components/Timeline.svelte';
   import Controls from '../components/Controls.svelte';
   import ExportModal from '../components/ExportModal.svelte';
-  import { clipsStore } from '../stores/clips.js';
+  import { clipsStore, generateFilmstripForClip } from '../stores/clips.js';
   import { invoke } from '@tauri-apps/api/core';
 
   let videoElement = $state(null);
@@ -58,6 +58,11 @@
           console.error("Error generating thumbnail for", result.path, ":", err);
           // Continue without thumbnail
         }
+
+        // Generate filmstrip in background (non-blocking)
+        generateFilmstripForClip(clipId).catch(err => {
+          console.error("Error generating filmstrip:", err);
+        });
       }
     } catch (err) {
       console.error('Error picking file:', err);

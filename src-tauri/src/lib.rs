@@ -113,6 +113,76 @@ fn pick_video_file_by_path(path: String) -> Result<VideoMetadata, String> {
     extract_video_metadata(&path)
 }
 
+/// Generate a filmstrip (vertical series of thumbnails) from a video file
+/// Returns the file path to the generated filmstrip PNG
+#[tauri::command]
+fn generate_filmstrip(
+    video_path: String,
+    clip_id: String,
+    frame_count: u32,
+) -> Result<String, String> {
+    println!(
+        "Generating filmstrip for: {} (clip_id: {}, frames: {})",
+        video_path, clip_id, frame_count
+    );
+    use std::fs;
+    use std::env;
+
+    // Create persistent cache directory for filmstrips
+    let cache_dir = env::temp_dir().join("clipforge_cache").join("filmstrips");
+    fs::create_dir_all(&cache_dir)
+        .map_err(|e| format!("Failed to create cache directory: {}", e))?;
+
+    // Generate filename for filmstrip
+    let filmstrip_filename = format!("{}_filmstrip.png", clip_id);
+    let filmstrip_path = cache_dir.join(&filmstrip_filename);
+
+    // Check if filmstrip already exists (caching)
+    if filmstrip_path.exists() {
+        println!("Filmstrip already exists, returning cached version");
+        return Ok(filmstrip_path.to_string_lossy().to_string());
+    }
+
+    // Get video metadata to calculate frame selection interval
+    let metadata = extract_video_metadata(&video_path)?;
+    let duration = metadata.duration;
+
+    // Calculate how many frames to skip
+    // For a 60fps 10s video (600 total frames) with 20 desired frames:
+    // We want to sample evenly across the video
+    // Simple approach: extract frames at regular time intervals
+    let frame_interval = duration / frame_count as f64;
+
+    // Build FFmpeg command for filmstrip generation
+    // Strategy: Extract frames at regular intervals, scale, and tile vertically
+    let select_filter = format!(
+        "select='not(mod(n,{}))',scale=120:-2,tile=1x{}",
+        // Select every Nth frame (approximate)
+        ((metadata.duration * 30.0) / frame_count as f64).max(1.0) as i32,
+        frame_count
+    );
+
+    let output = Command::new("ffmpeg")
+        .arg("-y") // Overwrite existing file
+        .arg("-i")
+        .arg(&video_path) // Input file
+        .arg("-vf")
+        .arg(&select_filter) // Filter: select frames, scale, tile vertically
+        .arg("-frames")
+        .arg("1") // Output 1 image (the tiled result)
+        .arg(filmstrip_path.to_string_lossy().to_string())
+        .output()
+        .map_err(|e| format!("Failed to run FFmpeg: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("FFmpeg filmstrip generation failed: {}", stderr));
+    }
+
+    println!("Filmstrip generated successfully at: {:?}", filmstrip_path);
+    Ok(filmstrip_path.to_string_lossy().to_string())
+}
+
 /// Generate a thumbnail image from a video file at a specific timestamp
 /// Returns the base64-encoded PNG image data URL
 #[tauri::command]
@@ -310,6 +380,7 @@ pub fn run() {
             pick_video_file,
             pick_video_file_by_path,
             generate_thumbnail,
+            generate_filmstrip,
             export_video
         ])
         .run(tauri::generate_context!())
