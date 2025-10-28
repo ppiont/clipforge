@@ -1,5 +1,4 @@
 <script>
-  import { onMount, onDestroy } from "svelte";
   import { clipsStore } from "../stores/clips.js";
   import { playbackStore } from "../stores/playback.js";
   import { Card } from "$lib/components/ui/card";
@@ -7,8 +6,8 @@
   import { ScrollArea } from "$lib/components/ui/scroll-area";
   import { Button } from "$lib/components/ui/button";
   import { invoke } from "@tauri-apps/api/core";
-  import { getCurrentWebview } from "@tauri-apps/api/webview";
-  import { Video, X } from "@lucide/svelte";
+  import { Video, X, Plus } from "@lucide/svelte";
+  import { timelineStore } from "../stores/timeline.js";
 
   /**
    * MediaLibrary Component
@@ -17,8 +16,6 @@
    */
 
   let isDraggingOver = $state(false);
-  /** @type {(() => void) | null} */
-  let unlistenDragDrop = null;
 
   /** @param {string} clipId */
   function selectClip(clipId) {
@@ -40,10 +37,14 @@
   }
 
   /** @param {DragEvent} e
-   *  @param {{id: string, duration: number, path: string}} clip */
+   *  @param {{id: string, filename: string, duration: number, path: string}} clip */
   function handleDragStart(e, clip) {
     if (!e.dataTransfer) return;
+    console.log("Drag started for clip:", clip.id, clip.filename);
     e.dataTransfer.effectAllowed = "copy";
+
+    // Set both formats to try to bypass Tauri interception
+    e.dataTransfer.setData("text/plain", clip.id);
     e.dataTransfer.setData(
       "application/json",
       JSON.stringify({
@@ -52,6 +53,9 @@
         path: clip.path,
       }),
     );
+
+    // Mark as internal drag
+    e.dataTransfer.setData("text/x-clipforge-clip", "true");
   }
 
   /** @param {string} clipId */
@@ -108,37 +112,97 @@
     }
   }
 
-  onMount(async () => {
-    const webview = getCurrentWebview();
+  /**
+   * Handle HTML5 drag over event for external file drops
+   * @param {DragEvent} e
+   */
+  function handleExternalDragOver(e) {
+    // Check if this is an external file drag (not internal clip drag)
+    const types = e.dataTransfer?.types || [];
+    const isFileDrag = types.includes('Files');
 
-    // Listen for drag drop events
-    unlistenDragDrop = await webview.onDragDropEvent((event) => {
-      console.log("Drag drop event:", event);
-
-      if (event.payload.type === "drop") {
-        // @ts-ignore - Tauri DragDropEvent payload
-        const paths = event.payload.paths;
-        if (paths && Array.isArray(paths)) {
-          handleFileDrop(paths);
-        }
-        isDraggingOver = false;
-      } else if (event.payload.type === "enter" || event.payload.type === "over") {
-        isDraggingOver = true;
-      } else if (event.payload.type === "leave") {
-        isDraggingOver = false;
+    if (isFileDrag) {
+      e.preventDefault();
+      e.stopPropagation();
+      isDraggingOver = true;
+      if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = 'copy';
       }
-    });
-  });
+    }
+  }
 
-  onDestroy(() => {
-    if (unlistenDragDrop) unlistenDragDrop();
-  });
+  /**
+   * Handle HTML5 drop event for external files
+   * @param {DragEvent} e
+   */
+  async function handleExternalDrop(e) {
+    const types = e.dataTransfer?.types || [];
+    const isFileDrag = types.includes('Files');
+
+    if (isFileDrag) {
+      e.preventDefault();
+      e.stopPropagation();
+      isDraggingOver = false;
+
+      const files = e.dataTransfer?.files;
+      if (!files) return;
+
+      const paths = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        // @ts-ignore - File has a path property in Electron/Tauri
+        if (file.path) {
+          paths.push(file.path);
+        }
+      }
+
+      if (paths.length > 0) {
+        await handleFileDrop(paths);
+      }
+    }
+  }
+
+  function handleDragLeave() {
+    isDraggingOver = false;
+  }
+
+  /**
+   * Workaround: Add clip to timeline at the end
+   * TODO: Re-enable drag-drop when Tauri issue is resolved
+   * @param {string} clipId
+   * @param {number} trackIndex
+   */
+  function addToTimeline(clipId, trackIndex) {
+    const clip = $clipsStore.find(c => c.id === clipId);
+    if (!clip) return;
+
+    const timelineClip = {
+      id: `timeline-clip-${Date.now()}-${Math.random()}`,
+      clipId: clip.id,
+      track: trackIndex,
+      startTime: $timelineStore.duration, // Add at end
+      trimStart: 0,
+      trimEnd: clip.duration,
+      duration: clip.duration
+    };
+
+    console.log('Adding clip to timeline:', timelineClip);
+
+    timelineStore.update(state => ({
+      ...state,
+      clips: [...state.clips, timelineClip],
+      duration: state.duration + clip.duration
+    }));
+  }
 </script>
 
 <div
   class="flex flex-col h-full border-l"
   role="region"
   aria-label="Media library drop zone"
+  ondragover={handleExternalDragOver}
+  ondrop={handleExternalDrop}
+  ondragleave={handleDragLeave}
 >
   <div class="px-4 py-3 border-b bg-muted">
     <div class="flex items-center justify-between">
@@ -151,12 +215,12 @@
     <div class="p-3 space-y-2">
       {#each $clipsStore as clip (clip.id)}
         <Card
-          class={`p-3 cursor-pointer transition-all hover:shadow-md ${
+          class={`p-3 cursor-move transition-all hover:shadow-md ${
             $playbackStore.selectedClipId === clip.id
               ? "ring-2 ring-primary bg-accent"
               : "hover:bg-muted"
           }`}
-          draggable="true"
+          draggable={true}
           onclick={() => selectClip(clip.id)}
           onkeydown={(/** @type {KeyboardEvent} */ e) => {
             if (e.key === "Enter" || e.key === " ") {
@@ -165,8 +229,10 @@
             }
           }}
           ondragstart={(/** @type {DragEvent} */ e) => handleDragStart(e, clip)}
+          ondragend={() => console.log("Drag ended")}
           role="button"
           tabindex="0"
+          data-clip-id={clip.id}
         >
           <div class="flex gap-3 items-center">
             <div
@@ -180,18 +246,34 @@
                 {formatTime(clip.duration)} • {clip.resolution}
               </p>
             </div>
-            <Button
-              class="shrink-0 bg-destructive hover:bg-destructive/90 text-white rounded-lg cursor-pointer"
-              variant="ghost"
-              size="icon-sm"
-              disabled={false}
-              onclick={(/** @type {MouseEvent} */ e) => {
-                e.stopPropagation();
-                removeClip(clip.id);
-              }}
-            >
-              <X class="w-4 h-4" />
-            </Button>
+            <div class="flex gap-1">
+              <Button
+                class="shrink-0"
+                variant="outline"
+                size="icon-sm"
+                disabled={false}
+                title="Add to Track 1"
+                onclick={(/** @type {MouseEvent} */ e) => {
+                  e.stopPropagation();
+                  addToTimeline(clip.id, 0);
+                }}
+              >
+                <Plus class="w-3 h-3" />
+              </Button>
+              <Button
+                class="shrink-0 bg-destructive hover:bg-destructive/90 text-white rounded-lg cursor-pointer"
+                variant="ghost"
+                size="icon-sm"
+                disabled={false}
+                title="Remove clip"
+                onclick={(/** @type {MouseEvent} */ e) => {
+                  e.stopPropagation();
+                  removeClip(clip.id);
+                }}
+              >
+                <X class="w-4 h-4" />
+              </Button>
+            </div>
           </div>
         </Card>
       {/each}
