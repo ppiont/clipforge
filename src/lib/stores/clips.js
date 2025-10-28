@@ -15,3 +15,6 @@ import { writable } from 'svelte/store';
 export const clipsStore = writable(
   /** @type {Clip[]} */ []
 );
+
+// Export types for use in other modules
+export {};

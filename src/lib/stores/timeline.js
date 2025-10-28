@@ -24,3 +24,6 @@ export const timelineStore = writable({
   playhead: 0,
   duration: 0
 });
+
+// Export types for use in other modules
+export {};
