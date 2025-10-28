@@ -7,6 +7,7 @@
   /**
    * Preview Component
    * Displays selected video clip with playback
+   * Supports both timeline playback and media library preview
    */
 
   let {
@@ -16,6 +17,7 @@
   let duration = $state(0);
   let trimStart = $state(0);
   let trimEnd = $state(0);
+  let currentlyPlayingClipId = $state(null);
 
   // Get selected clip from media library
   let selectedClip = $derived(
@@ -24,11 +26,6 @@
       /** @param {{id: string; filename: string; path: string; duration: number; resolution: string}} c */
       c => c.id === $playbackStore.selectedClipId
     ))
-  );
-
-  // Convert file path to Tauri asset URL
-  let videoSrc = $derived(
-    selectedClip ? convertFileSrc(selectedClip.path) : ''
   );
 
   // Get selected timeline clip and its trim data
@@ -40,17 +37,71 @@
     ))
   );
 
-  // Determine which clip to display (use timeline clip if available, else media library clip)
-  let displayClip = $derived(selectedClip);
+  // Determine which clip to display based on timeline state
+  // Priority: Timeline playback > Selected timeline clip > Selected media library clip
+  let activeTimelineClip = $derived.by(() => {
+    // If we have timeline clips and playback is happening or playhead is > 0, find clip at playhead
+    if ($timelineStore.clips.length > 0 && ($playbackStore.isPlaying || $playbackStore.currentTime > 0)) {
+      // Find clip at current playhead position (prioritize track 0, main video)
+      const clipAtPlayhead = $timelineStore.clips
+        .filter(c => c.track === 0) // Only main track for now
+        .find(c =>
+          $playbackStore.currentTime >= c.startTime &&
+          $playbackStore.currentTime < c.startTime + c.duration
+        );
 
-  // Update trim range when timeline clip selected
+      if (clipAtPlayhead) {
+        return clipAtPlayhead;
+      }
+    }
+
+    // Fall back to selected timeline clip if available
+    return selectedTimelineClip;
+  });
+
+  // Get the source clip from media library for the active timeline clip
+  let displayClip = $derived.by(() => {
+    if (activeTimelineClip) {
+      return $clipsStore.find(c => c.id === activeTimelineClip.clipId);
+    }
+    return selectedClip;
+  });
+
+  // Convert file path to Tauri asset URL
+  let videoSrc = $derived(
+    displayClip ? convertFileSrc(displayClip.path) : ''
+  );
+
+  // Update trim range and video time when active clip changes
   $effect(() => {
-    if (selectedTimelineClip) {
-      trimStart = selectedTimelineClip.trimStart || 0;
-      trimEnd = selectedTimelineClip.trimEnd || duration;
+    if (activeTimelineClip) {
+      trimStart = activeTimelineClip.trimStart || 0;
+      trimEnd = activeTimelineClip.trimEnd || (displayClip?.duration ?? 0);
+
+      // Calculate offset within the clip
+      const offsetInTimeline = $playbackStore.currentTime - activeTimelineClip.startTime;
+      const videoTime = trimStart + offsetInTimeline;
+
+      // Update video element to correct position within the trimmed range
+      if (videoElement && displayClip && currentlyPlayingClipId !== activeTimelineClip.clipId) {
+        // Source changed, need to reload
+        currentlyPlayingClipId = activeTimelineClip.clipId;
+        videoElement.currentTime = videoTime;
+      } else if (videoElement) {
+        // Same source, just sync time
+        const timeDiff = Math.abs(videoElement.currentTime - videoTime);
+        if (timeDiff > 0.1) { // Only update if difference is significant
+          videoElement.currentTime = videoTime;
+        }
+      }
+    } else if (selectedClip) {
+      trimStart = 0;
+      trimEnd = selectedClip.duration;
+      currentlyPlayingClipId = selectedClip.id;
     } else {
       trimStart = 0;
-      trimEnd = duration;
+      trimEnd = 0;
+      currentlyPlayingClipId = null;
     }
   });
 
@@ -62,10 +113,50 @@
   }
 
   function onTimeUpdate() {
-    if (videoElement) {
-      currentTime = videoElement.currentTime;
+    if (!videoElement) return;
 
-      // Update playhead in stores
+    currentTime = videoElement.currentTime;
+
+    // If we're playing from timeline, update timeline playhead position
+    if (activeTimelineClip) {
+      // Calculate timeline position from video position
+      const timelinePosition = activeTimelineClip.startTime + (currentTime - trimStart);
+
+      // Update both stores
+      playbackStore.update(state => ({
+        ...state,
+        currentTime: timelinePosition
+      }));
+      timelineStore.update(state => ({
+        ...state,
+        playhead: timelinePosition
+      }));
+
+      // Check if we've reached the end of the trimmed clip
+      if (currentTime >= trimEnd) {
+        // Move to next clip or stop
+        const nextClipStartTime = activeTimelineClip.startTime + activeTimelineClip.duration;
+        const nextClip = $timelineStore.clips
+          .filter(c => c.track === 0)
+          .find(c => c.startTime >= nextClipStartTime);
+
+        if (nextClip && $playbackStore.isPlaying) {
+          // Jump to next clip
+          playbackStore.update(state => ({
+            ...state,
+            currentTime: nextClip.startTime
+          }));
+        } else {
+          // No next clip, pause
+          videoElement.pause();
+          playbackStore.update(state => ({
+            ...state,
+            isPlaying: false
+          }));
+        }
+      }
+    } else {
+      // Playing from media library, just update current time
       playbackStore.update(state => ({
         ...state,
         currentTime
@@ -75,8 +166,8 @@
         playhead: currentTime
       }));
 
-      // Loop trim range if past trimEnd
-      if (trimEnd > 0 && currentTime > trimEnd) {
+      // Loop trim range if past trimEnd (for selected timeline clips)
+      if (selectedTimelineClip && trimEnd > 0 && currentTime > trimEnd) {
         videoElement.currentTime = trimStart;
       }
     }

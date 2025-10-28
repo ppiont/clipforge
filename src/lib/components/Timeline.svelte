@@ -22,6 +22,7 @@
 
   let isDraggingOverTrack1 = $state(false);
   let isDraggingOverTrack2 = $state(false);
+  let isDraggingPlayhead = $state(false);
 
   // Calculate timeline duration: max of timeline clips duration OR currently selected video duration
   let effectiveTimelineDuration = $derived.by(() => {
@@ -271,6 +272,157 @@
   function zoom_reset() {
     zoom = 100;
   }
+
+  /**
+   * Start dragging the playhead
+   * @param {MouseEvent} e
+   */
+  function startPlayheadDrag(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    isDraggingPlayhead = true;
+
+    // Pause video while scrubbing
+    const wasPlaying = $playbackStore.isPlaying;
+    if (wasPlaying && videoElement) {
+      videoElement.pause();
+      playbackStore.update(state => ({
+        ...state,
+        isPlaying: false
+      }));
+    }
+
+    /** @param {MouseEvent} moveEvent */
+    function handleMouseMove(moveEvent) {
+      if (!timelineElement || !isDraggingPlayhead) return;
+
+      const rect = timelineElement.getBoundingClientRect();
+      const x = Math.max(0, moveEvent.clientX - rect.left);
+      const newTime = Math.max(0, Math.min(x / zoom, effectiveTimelineDuration));
+
+      // Update playback position
+      playbackStore.update(state => ({
+        ...state,
+        currentTime: newTime
+      }));
+
+      // Update video element
+      if (videoElement) {
+        // Find clip at new position
+        const clipAtPosition = $timelineStore.clips
+          .filter(c => c.track === 0)
+          .find(c => newTime >= c.startTime && newTime < c.startTime + c.duration);
+
+        if (clipAtPosition) {
+          // Calculate offset within clip
+          const offset = newTime - clipAtPosition.startTime;
+          videoElement.currentTime = clipAtPosition.trimStart + offset;
+        }
+      }
+    }
+
+    function handleMouseUp() {
+      isDraggingPlayhead = false;
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+
+      // Resume playback if it was playing before
+      if (wasPlaying && videoElement) {
+        videoElement.play();
+        playbackStore.update(state => ({
+          ...state,
+          isPlaying: true
+        }));
+      }
+    }
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }
+
+  /**
+   * Start trimming a clip (dragging left or right edge)
+   * @param {MouseEvent} e
+   * @param {string} clipId
+   * @param {'start' | 'end'} side
+   */
+  function startTrimDrag(e, clipId, side) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const clip = $timelineStore.clips.find(c => c.id === clipId);
+    if (!clip) return;
+
+    const sourceClip = $clipsStore.find(c => c.id === clip.clipId);
+    if (!sourceClip) return;
+
+    const startX = e.clientX;
+    const startTrimValue = side === 'start' ? clip.trimStart : clip.trimEnd;
+    const startTimelinePosition = clip.startTime;
+
+    /** @param {MouseEvent} moveEvent */
+    function handleMouseMove(moveEvent) {
+      const deltaX = moveEvent.clientX - startX;
+      const deltaTime = deltaX / zoom;
+
+      if (side === 'start') {
+        // Trimming from the start
+        const newTrimStart = Math.max(0, Math.min(startTrimValue + deltaTime, clip.trimEnd - 0.1));
+        const newStartTime = startTimelinePosition + deltaTime;
+        const newDuration = clip.trimEnd - newTrimStart;
+
+        timelineStore.update(state => ({
+          ...state,
+          clips: state.clips.map(c =>
+            c.id === clipId
+              ? {
+                  ...c,
+                  trimStart: newTrimStart,
+                  startTime: Math.max(0, newStartTime),
+                  duration: newDuration
+                }
+              : c
+          )
+        }));
+      } else {
+        // Trimming from the end
+        const newTrimEnd = Math.max(clip.trimStart + 0.1, Math.min(startTrimValue + deltaTime, sourceClip.duration));
+        const newDuration = newTrimEnd - clip.trimStart;
+
+        timelineStore.update(state => ({
+          ...state,
+          clips: state.clips.map(c =>
+            c.id === clipId
+              ? {
+                  ...c,
+                  trimEnd: newTrimEnd,
+                  duration: newDuration
+                }
+              : c
+          )
+        }));
+      }
+    }
+
+    function handleMouseUp() {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+
+      // Recalculate timeline duration
+      const maxDuration = $timelineStore.clips.reduce((max, c) => {
+        const clipEnd = c.startTime + c.duration;
+        return Math.max(max, clipEnd);
+      }, 0);
+
+      timelineStore.update(state => ({
+        ...state,
+        duration: maxDuration
+      }));
+    }
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }
 </script>
 
 <div
@@ -339,13 +491,24 @@
           >
             <!-- Playhead for Track 1 -->
             <div
-              class="absolute w-0.5 h-full bg-destructive shadow-md z-50 pointer-events-none"
+              class="absolute h-full z-50"
               style="left: {playheadPosition}px"
               title={formatTime($playbackStore.currentTime)}
-            ></div>
+            >
+              <!-- Draggable handle -->
+              <div
+                class="absolute top-0 left-1/2 -translate-x-1/2 w-3 h-3 bg-destructive rounded-full cursor-ew-resize shadow-md"
+                onmousedown={startPlayheadDrag}
+                role="button"
+                tabindex="0"
+                aria-label="Playhead - drag to scrub"
+              ></div>
+              <!-- Playhead line -->
+              <div class="absolute w-0.5 h-full bg-destructive shadow-md pointer-events-none"></div>
+            </div>
             {#each getClipsForTrack(0) as timelineClip (timelineClip.id)}
               <div
-                class={`absolute top-1 h-7 bg-primary text-primary-foreground text-xs px-2 rounded flex items-center justify-between cursor-pointer select-none overflow-hidden transition-all hover:brightness-110 ${
+                class={`absolute top-1 h-7 bg-primary text-primary-foreground text-xs px-2 rounded flex items-center justify-between cursor-pointer select-none overflow-visible transition-all hover:brightness-110 ${
                   $playbackStore.selectedTimelineClipId === timelineClip.id
                     ? 'ring-2 ring-ring shadow-lg brightness-110'
                     : ''
@@ -367,21 +530,23 @@
                 role="button"
                 tabindex="0"
               >
-                <span class="truncate text-xs flex-1">
+                <!-- Left trim handle -->
+                <div
+                  class="absolute left-0 top-0 w-2 h-full bg-primary-foreground/30 hover:bg-primary-foreground/50 cursor-ew-resize"
+                  onmousedown={(e) => startTrimDrag(e, timelineClip.id, 'start')}
+                  title="Trim start"
+                ></div>
+
+                <span class="truncate text-xs flex-1 px-1">
                   {getClipFilename(timelineClip.clipId)}
                 </span>
-                {#if $playbackStore.selectedTimelineClipId === timelineClip.id}
-                  <button
-                    class="ml-1 shrink-0 w-5 h-5 flex items-center justify-center rounded bg-destructive/80 hover:bg-destructive transition-colors"
-                    onclick={(e) => {
-                      e.stopPropagation();
-                      deleteSelectedTimelineClip();
-                    }}
-                    title="Delete (Backspace)"
-                  >
-                    <X class="w-3 h-3" />
-                  </button>
-                {/if}
+
+                <!-- Right trim handle -->
+                <div
+                  class="absolute right-0 top-0 w-2 h-full bg-primary-foreground/30 hover:bg-primary-foreground/50 cursor-ew-resize"
+                  onmousedown={(e) => startTrimDrag(e, timelineClip.id, 'end')}
+                  title="Trim end"
+                ></div>
               </div>
             {/each}
           </div>
@@ -417,13 +582,24 @@
           >
             <!-- Playhead for Track 2 -->
             <div
-              class="absolute w-0.5 h-full bg-destructive shadow-md z-50 pointer-events-none"
+              class="absolute h-full z-50"
               style="left: {playheadPosition}px"
               title={formatTime($playbackStore.currentTime)}
-            ></div>
+            >
+              <!-- Draggable handle -->
+              <div
+                class="absolute top-0 left-1/2 -translate-x-1/2 w-3 h-3 bg-destructive rounded-full cursor-ew-resize shadow-md"
+                onmousedown={startPlayheadDrag}
+                role="button"
+                tabindex="0"
+                aria-label="Playhead - drag to scrub"
+              ></div>
+              <!-- Playhead line -->
+              <div class="absolute w-0.5 h-full bg-destructive shadow-md pointer-events-none"></div>
+            </div>
             {#each getClipsForTrack(1) as timelineClip (timelineClip.id)}
               <div
-                class={`absolute top-1 h-7 bg-primary text-primary-foreground text-xs px-2 rounded flex items-center justify-between cursor-pointer select-none overflow-hidden transition-all hover:brightness-110 ${
+                class={`absolute top-1 h-7 bg-primary text-primary-foreground text-xs px-2 rounded flex items-center justify-between cursor-pointer select-none overflow-visible transition-all hover:brightness-110 ${
                   $playbackStore.selectedTimelineClipId === timelineClip.id
                     ? 'ring-2 ring-ring shadow-lg brightness-110'
                     : ''
@@ -445,21 +621,23 @@
                 role="button"
                 tabindex="0"
               >
-                <span class="truncate text-xs flex-1">
+                <!-- Left trim handle -->
+                <div
+                  class="absolute left-0 top-0 w-2 h-full bg-primary-foreground/30 hover:bg-primary-foreground/50 cursor-ew-resize"
+                  onmousedown={(e) => startTrimDrag(e, timelineClip.id, 'start')}
+                  title="Trim start"
+                ></div>
+
+                <span class="truncate text-xs flex-1 px-1">
                   {getClipFilename(timelineClip.clipId)}
                 </span>
-                {#if $playbackStore.selectedTimelineClipId === timelineClip.id}
-                  <button
-                    class="ml-1 shrink-0 w-5 h-5 flex items-center justify-center rounded bg-destructive/80 hover:bg-destructive transition-colors"
-                    onclick={(e) => {
-                      e.stopPropagation();
-                      deleteSelectedTimelineClip();
-                    }}
-                    title="Delete (Backspace)"
-                  >
-                    <X class="w-3 h-3" />
-                  </button>
-                {/if}
+
+                <!-- Right trim handle -->
+                <div
+                  class="absolute right-0 top-0 w-2 h-full bg-primary-foreground/30 hover:bg-primary-foreground/50 cursor-ew-resize"
+                  onmousedown={(e) => startTrimDrag(e, timelineClip.id, 'end')}
+                  title="Trim end"
+                ></div>
               </div>
             {/each}
           </div>
