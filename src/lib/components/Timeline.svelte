@@ -399,7 +399,7 @@
           <div
             class={`relative cursor-crosshair transition-all ${
               isDraggingOverTrack2
-                ? 'bg-accent/10 ring-2 ring-accent ring-inset'
+                ? 'bg-primary/10 ring-2 ring-primary ring-inset'
                 : 'hover:bg-muted/30'
             }`}
             style="width: {timelineWidth}px"
@@ -423,7 +423,7 @@
             ></div>
             {#each getClipsForTrack(1) as timelineClip (timelineClip.id)}
               <div
-                class={`absolute top-1 h-7 bg-accent text-accent-foreground text-xs px-2 rounded flex items-center justify-between cursor-pointer select-none overflow-hidden transition-all hover:brightness-110 ${
+                class={`absolute top-1 h-7 bg-primary text-primary-foreground text-xs px-2 rounded flex items-center justify-between cursor-pointer select-none overflow-hidden transition-all hover:brightness-110 ${
                   $playbackStore.selectedTimelineClipId === timelineClip.id
                     ? 'ring-2 ring-ring shadow-lg brightness-110'
                     : ''
