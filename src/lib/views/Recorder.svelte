@@ -1,7 +1,7 @@
 <script>
   /**
    * Recorder View
-   * Floating recorder window (400x300px)
+   * Floating recorder window (400x500px)
    * Implements screen + webcam PiP recording with canvas compositing
    */
 
@@ -10,19 +10,60 @@
   import { Button } from '$lib/components/ui/button';
   import { Badge } from '$lib/components/ui/badge';
   import * as Alert from '$lib/components/ui/alert';
+  import * as ToggleGroup from '$lib/components/ui/toggle-group';
   import { recordingStore } from '../stores/recording.js';
   import { clipsStore, generateFilmstripForClip } from '../stores/clips.js';
-  import { Circle, X } from '@lucide/svelte';
+  import { Circle, X, Monitor, Camera, MonitorPlay } from '@lucide/svelte';
 
   // Recording state
   let isRecording = $state(false);
   let recordedDuration = $state(0);
   let timerInterval = null;
   let error = $state('');
+  let selectedSources = $state(['screen', 'webcam']); // Array of selected sources
+  let recordingMode = $state('both'); // Derived: 'screen', 'webcam', or 'both'
 
-  // Media elements and streams
-  let screenStream = null;
-  let webcamStream = null;
+  // Derive recording mode from selected sources
+  $effect(() => {
+    const hasScreen = selectedSources.includes('screen');
+    const hasWebcam = selectedSources.includes('webcam');
+
+    if (hasScreen && hasWebcam) {
+      recordingMode = 'both';
+    } else if (hasScreen) {
+      recordingMode = 'screen';
+    } else if (hasWebcam) {
+      recordingMode = 'webcam';
+    } else {
+      // Default to both if nothing selected
+      selectedSources = ['screen', 'webcam'];
+      recordingMode = 'both';
+    }
+  });
+
+  // Live webcam preview when webcam is toggled (even before recording)
+  $effect(() => {
+    const webcamEnabled = selectedSources.includes('webcam');
+
+    if (webcamEnabled && !isRecording && !webcamStream) {
+      // Start webcam preview
+      startWebcamPreview();
+    } else if (!webcamEnabled && !isRecording && webcamStream) {
+      // Stop webcam preview
+      stopWebcamPreview();
+    }
+  });
+
+  // Attach webcam stream to preview element when available
+  $effect(() => {
+    if (webcamStream && webcamPreviewElement) {
+      webcamPreviewElement.srcObject = webcamStream;
+    }
+  });
+
+  // Media elements and streams (reactive for UI updates)
+  let screenStream = $state(null);
+  let webcamStream = $state(null);
   let compositeStream = null;
   let mediaRecorder = null;
   let recordedChunks = [];
@@ -32,7 +73,7 @@
   let ctx = null;
   let screenVideo = null;
   let webcamVideo = null;
-  let webcamPreviewElement = null;
+  let webcamPreviewElement = $state(null);
 
   // Animation frame ID
   let animationFrameId = null;
@@ -43,35 +84,76 @@
   async function startRecording() {
     try {
       error = '';
-      console.log('Starting PiP recording...');
+      console.log(`Starting ${recordingMode} recording...`);
 
-      // Step 1: Get screen stream
-      screenStream = await navigator.mediaDevices.getDisplayMedia({
-        video: {
-          cursor: 'always',
-          displaySurface: 'monitor'
-        },
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true
+      // Step 1: Get screen stream (if needed)
+      if (recordingMode === 'screen' || recordingMode === 'both') {
+        try {
+          // Try to get screen with audio first
+          screenStream = await navigator.mediaDevices.getDisplayMedia({
+            video: {
+              cursor: 'always',
+              displaySurface: 'monitor'
+            },
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              sampleRate: 48000
+            }
+          });
+
+          const hasAudio = screenStream.getAudioTracks().length > 0;
+          console.log(`Screen stream acquired ${hasAudio ? 'with' : 'without'} audio`);
+
+          if (!hasAudio) {
+            console.warn('Screen audio not available - this is common on macOS. Microphone audio will be used instead.');
+          }
+        } catch (err) {
+          // If audio fails, try video-only
+          console.warn('Failed to get screen with audio, trying video-only:', err);
+          screenStream = await navigator.mediaDevices.getDisplayMedia({
+            video: {
+              cursor: 'always',
+              displaySurface: 'monitor'
+            },
+            audio: false
+          });
+          console.log('Screen stream acquired (video only, no system audio)');
         }
-      });
-      console.log('Screen stream acquired');
+      }
 
-      // Step 2: Get webcam stream
-      webcamStream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        },
-        audio: false // Use screen audio only
-      });
-      console.log('Webcam stream acquired');
+      // Step 2: Get webcam stream (if needed and not already active from preview)
+      if (recordingMode === 'webcam' || recordingMode === 'both') {
+        // Stop existing preview stream if it exists (doesn't have audio)
+        if (webcamStream && recordingMode !== 'screen') {
+          webcamStream.getTracks().forEach(track => track.stop());
+          webcamStream = null;
+        }
 
-      // Step 3: Set up canvas for compositing
-      setupCanvas();
+        if (!webcamStream) {
+          webcamStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              width: { ideal: 1280 },
+              height: { ideal: 720 }
+            },
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              sampleRate: 48000
+            } // Always request audio for webcam/microphone
+          });
+          console.log('Webcam stream acquired with audio');
+        } else {
+          console.log('Using existing webcam stream from preview');
+        }
+      }
 
-      // Step 4: Start MediaRecorder with composite stream
+      // Step 3: Set up canvas for compositing (if both modes)
+      if (recordingMode === 'both') {
+        setupCanvas();
+      }
+
+      // Step 4: Start MediaRecorder with appropriate stream
       startMediaRecorder();
 
       // Step 5: Update UI state
@@ -85,7 +167,7 @@
       recordingStore.update(state => ({
         ...state,
         isRecording: true,
-        source: 'both',
+        source: recordingMode,
         startTime: Date.now(),
         recordedDuration: 0
       }));
@@ -170,21 +252,54 @@
   }
 
   /**
-   * Start MediaRecorder with composite stream
+   * Start MediaRecorder with appropriate stream based on mode
    */
   function startMediaRecorder() {
-    // Capture composite stream from canvas
-    compositeStream = canvas.captureStream(30);
+    let recordStream;
 
-    // Add audio track from screen stream
-    const audioTrack = screenStream.getAudioTracks()[0];
-    if (audioTrack) {
-      compositeStream.addTrack(audioTrack);
+    // Determine which stream to record
+    if (recordingMode === 'both') {
+      // Capture composite stream from canvas
+      recordStream = canvas.captureStream(30);
+
+      // Add audio tracks from both screen and webcam
+      const screenAudioTrack = screenStream.getAudioTracks()[0];
+      const webcamAudioTrack = webcamStream.getAudioTracks()[0];
+
+      if (screenAudioTrack) {
+        console.log('Adding screen audio track');
+        recordStream.addTrack(screenAudioTrack);
+      } else {
+        console.warn('No screen audio track available (this is common on macOS)');
+      }
+
+      if (webcamAudioTrack) {
+        console.log('Adding webcam microphone audio track');
+        recordStream.addTrack(webcamAudioTrack);
+      } else {
+        console.warn('No webcam audio track available');
+      }
+
+      // Note: MediaRecorder will automatically mix multiple audio tracks
+    } else if (recordingMode === 'screen') {
+      // Record screen stream directly
+      recordStream = screenStream;
+    } else if (recordingMode === 'webcam') {
+      // Record webcam stream directly
+      recordStream = webcamStream;
     }
+
+    // Log final stream configuration
+    const videoTracks = recordStream.getVideoTracks();
+    const audioTracks = recordStream.getAudioTracks();
+    console.log(`Recording stream: ${videoTracks.length} video track(s), ${audioTracks.length} audio track(s)`);
+    audioTracks.forEach((track, i) => {
+      console.log(`  Audio track ${i}: ${track.label} (enabled: ${track.enabled})`);
+    });
 
     // Create MediaRecorder
     recordedChunks = [];
-    mediaRecorder = new MediaRecorder(compositeStream, {
+    mediaRecorder = new MediaRecorder(recordStream, {
       mimeType: 'video/webm;codecs=vp9',
       videoBitsPerSecond: 2500000
     });
@@ -198,6 +313,8 @@
     mediaRecorder.onstop = async () => {
       console.log('MediaRecorder stopped, saving recording...');
       await saveRecording();
+      // Cleanup after save completes
+      cleanup();
     };
 
     mediaRecorder.start();
@@ -211,8 +328,8 @@
     console.log('Stopping recording...');
     if (mediaRecorder && mediaRecorder.state !== 'inactive') {
       mediaRecorder.stop();
+      // Don't cleanup here - let onstop handler do it after save completes
     }
-    cleanup();
   }
 
   /**
@@ -242,27 +359,41 @@
       const arrayBuffer = await blob.arrayBuffer();
       const uint8Array = new Uint8Array(arrayBuffer);
 
-      // Generate filename
+      // Generate filename (save as WebM temporarily, will convert to MP4)
       const now = new Date();
       const timestamp = now.toISOString().replace(/[:.]/g, '-').split('T');
-      const filename = `recording_${timestamp[0]}_${timestamp[1].slice(0, 8)}.webm`;
+      const tempFilename = `recording_${timestamp[0]}_${timestamp[1].slice(0, 8)}_temp.webm`;
 
       // Save via Tauri command
-      console.log(`Saving recording as ${filename}...`);
-      const filePath = await invoke('save_recording', {
+      console.log(`Saving recording as ${tempFilename}...`);
+      const tempFilePath = await invoke('save_recording', {
         blob: Array.from(uint8Array),
-        filename
+        filename: tempFilename
       });
-      console.log(`Recording saved to: ${filePath}`);
+      console.log(`Recording saved to: ${tempFilePath}`);
 
-      // Auto-import to timeline
-      await autoImportRecording(filePath);
+      // Convert to MP4 for better compatibility
+      console.log('Converting to MP4...');
+      const mp4Filename = `recording_${timestamp[0]}_${timestamp[1].slice(0, 8)}.mp4`;
+      const mp4FilePath = await invoke('convert_webm_to_mp4', {
+        inputPath: tempFilePath,
+        outputFilename: mp4Filename
+      });
+      console.log(`Converted to MP4: ${mp4FilePath}`);
 
-      // Close recorder window
-      closeWindow();
+      // Auto-import the MP4 to timeline
+      await autoImportRecording(mp4FilePath);
+
+      console.log('Recording saved and imported successfully!');
+
+      // Close recorder window after a short delay (so user sees success)
+      setTimeout(() => {
+        closeWindow();
+      }, 1000);
     } catch (err) {
       console.error('Error saving recording:', err);
       error = `Failed to save recording: ${err.message || err}`;
+      // Don't close window on error so user can see the error message
     }
   }
 
@@ -315,6 +446,46 @@
     } catch (err) {
       console.error('Error auto-importing recording:', err);
       error = `Failed to import recording: ${err.message || err}`;
+    }
+  }
+
+  /**
+   * Start webcam preview (before recording starts)
+   */
+  async function startWebcamPreview() {
+    try {
+      console.log('Starting webcam preview...');
+      webcamStream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
+        audio: false
+      });
+
+      // Attach to preview element
+      if (webcamPreviewElement) {
+        webcamPreviewElement.srcObject = webcamStream;
+      }
+
+      console.log('Webcam preview started');
+    } catch (err) {
+      console.error('Error starting webcam preview:', err);
+      error = `Failed to access webcam: ${err.message || err}`;
+    }
+  }
+
+  /**
+   * Stop webcam preview (when toggle is disabled)
+   */
+  function stopWebcamPreview() {
+    console.log('Stopping webcam preview...');
+    if (webcamStream) {
+      webcamStream.getTracks().forEach(track => track.stop());
+      webcamStream = null;
+    }
+    if (webcamPreviewElement) {
+      webcamPreviewElement.srcObject = null;
     }
   }
 
@@ -391,30 +562,64 @@
     </Badge>
   </div>
 
-  <!-- Preview Area (webcam feed during recording) -->
+  <!-- Preview Area -->
   <div class="flex-1 bg-black flex items-center justify-center overflow-hidden min-h-0">
-    {#if isRecording && webcamStream}
+    {#if webcamStream}
+      <!-- Show webcam feed (live preview or during recording) -->
       <!-- svelte-ignore a11y_media_has_caption -->
       <video
         bind:this={webcamPreviewElement}
         autoplay
         muted
-        class="w-full h-full object-contain"
+        class="w-full h-full object-contain scale-x-[-1]"
       ></video>
-    {:else}
+    {:else if isRecording && recordingMode === 'screen'}
       <p class="text-sm text-muted-foreground">
-        Webcam preview will appear here
+        Recording screen...
       </p>
+    {:else}
+      <div class="text-center space-y-2">
+        <div class="flex items-center justify-center gap-2">
+          {#if selectedSources.includes('screen')}
+            <Monitor class="w-5 h-5 text-primary" />
+          {/if}
+          {#if selectedSources.includes('webcam')}
+            <Camera class="w-5 h-5 text-primary" />
+          {/if}
+        </div>
+        <p class="text-sm text-muted-foreground">
+          {recordingMode === 'screen' ? 'Screen recording' :
+           recordingMode === 'webcam' ? 'Webcam recording' :
+           'Screen + Webcam (PiP)'}
+        </p>
+        <p class="text-xs text-muted-foreground/60">
+          {selectedSources.includes('webcam') ? 'Waiting for webcam...' : 'Select sources below, then click Start'}
+        </p>
+      </div>
     {/if}
 
     <!-- Hidden canvas for compositing -->
     <canvas bind:this={canvas} class="hidden"></canvas>
   </div>
 
-  <!-- Source Selector (locked to "Both" for MVP) -->
-  <div class="flex items-center gap-4 px-4 py-2 bg-muted border-t shrink-0">
-    <span class="text-xs text-muted-foreground">Mode:</span>
-    <Badge variant="outline" class="text-xs">Screen + Webcam</Badge>
+  <!-- Mode Selector -->
+  <div class="flex flex-col gap-2 px-4 py-3 bg-muted border-t shrink-0">
+    <div class="flex items-center justify-between">
+      <span class="text-xs font-medium text-muted-foreground">Recording Sources</span>
+      {#if recordingMode === 'both'}
+        <Badge variant="secondary" class="text-xs">Screen + Webcam</Badge>
+      {/if}
+    </div>
+    <ToggleGroup.Root type="multiple" bind:value={selectedSources} disabled={isRecording} class="justify-start gap-2">
+      <ToggleGroup.Item value="screen" aria-label="Screen recording" class="flex-1 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
+        <Monitor class="w-4 h-4 mr-2" />
+        Screen
+      </ToggleGroup.Item>
+      <ToggleGroup.Item value="webcam" aria-label="Webcam recording" class="flex-1 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
+        <Camera class="w-4 h-4 mr-2" />
+        Webcam
+      </ToggleGroup.Item>
+    </ToggleGroup.Root>
   </div>
 
   <!-- Error Display -->
