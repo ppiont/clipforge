@@ -22,29 +22,21 @@
   let error = $state('');
   let selectedSources = $state(['screen', 'webcam']); // Array of selected sources
   let recordingMode = $state('both'); // Derived: 'screen', 'webcam', or 'both'
-  let previousSources = ['screen', 'webcam']; // Track previous selection
 
   // Derive recording mode from selected sources
   $effect(() => {
     const hasScreen = selectedSources.includes('screen');
     const hasWebcam = selectedSources.includes('webcam');
 
-    // Prevent deselecting all sources - restore previous selection
-    if (!hasScreen && !hasWebcam) {
-      selectedSources = previousSources;
-      return;
-    }
-
-    // Update previous sources for next time
-    previousSources = [...selectedSources];
-
-    // Derive recording mode
+    // Derive recording mode (can be null if nothing selected)
     if (hasScreen && hasWebcam) {
       recordingMode = 'both';
     } else if (hasScreen) {
       recordingMode = 'screen';
     } else if (hasWebcam) {
       recordingMode = 'webcam';
+    } else {
+      recordingMode = null;
     }
   });
 
@@ -586,22 +578,35 @@
       </p>
     {:else}
       <div class="text-center space-y-3">
-        <div class="flex items-center justify-center gap-2">
-          {#if selectedSources.includes('screen')}
-            <Monitor class="text-muted-foreground/70" />
-          {/if}
-          {#if selectedSources.includes('webcam')}
-            <Camera class="text-muted-foreground/70" />
-          {/if}
-        </div>
-        <p class="text-sm text-muted-foreground font-medium">
-          {recordingMode === 'screen' ? 'Screen recording' :
-           recordingMode === 'webcam' ? 'Webcam recording' :
-           'Screen + Webcam (PiP)'}
-        </p>
-        <p class="text-xs text-muted-foreground {selectedSources.includes('webcam') ? 'animate-pulse' : ''}">
-          {selectedSources.includes('webcam') ? 'Waiting for webcam...' : 'Select sources below, then click Start'}
-        </p>
+        {#if recordingMode}
+          <div class="flex items-center justify-center gap-2">
+            {#if selectedSources.includes('screen')}
+              <Monitor class="text-muted-foreground/70" />
+            {/if}
+            {#if selectedSources.includes('webcam')}
+              <Camera class="text-muted-foreground/70" />
+            {/if}
+          </div>
+          <p class="text-sm text-muted-foreground font-medium">
+            {recordingMode === 'screen' ? 'Screen recording' :
+             recordingMode === 'webcam' ? 'Webcam recording' :
+             'Screen + Webcam (PiP)'}
+          </p>
+          <p class="text-xs text-muted-foreground {selectedSources.includes('webcam') ? 'animate-pulse' : ''}">
+            {selectedSources.includes('webcam') ? 'Waiting for webcam...' : 'Select sources below, then click Start'}
+          </p>
+        {:else}
+          <div class="flex items-center justify-center gap-2 opacity-50">
+            <Monitor class="text-muted-foreground/50" />
+            <Camera class="text-muted-foreground/50" />
+          </div>
+          <p class="text-sm text-muted-foreground font-medium">
+            No recording source selected
+          </p>
+          <p class="text-xs text-muted-foreground/60">
+            Select a source below to start recording
+          </p>
+        {/if}
       </div>
     {/if}
 
@@ -633,7 +638,12 @@
   <!-- Action Buttons -->
   <div class="flex gap-2 px-4 py-3 bg-muted border-t shrink-0">
     {#if !isRecording}
-      <Button onclick={startRecording} class="flex-1 transition-all active:scale-95" variant="default">
+      <Button
+        onclick={startRecording}
+        class="flex-1 transition-all active:scale-95"
+        variant="default"
+        disabled={!recordingMode}
+      >
         <Circle class="mr-2" />
         Start Recording
       </Button>
