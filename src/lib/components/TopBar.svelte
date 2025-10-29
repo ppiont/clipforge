@@ -18,15 +18,15 @@
   <h1 class="text-xl font-bold text-foreground">ClipForge</h1>
 
   <div class="flex gap-2">
-    <Button variant="outline" onclick={onImportClick}>
+    <Button variant="outline" class="active:scale-95 transition-transform" onclick={onImportClick}>
       <FolderOpen />
       Import
     </Button>
-    <Button variant="outline" onclick={onRecordClick}>
+    <Button variant="outline" class="active:scale-95 transition-transform" onclick={onRecordClick}>
       <Circle class="fill-destructive text-destructive" />
       Record
     </Button>
-    <Button variant="default" onclick={onExportClick}>
+    <Button variant="default" class="active:scale-95 transition-transform" onclick={onExportClick}>
       <Save />
       Export
     </Button>

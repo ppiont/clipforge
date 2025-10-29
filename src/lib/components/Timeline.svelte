@@ -680,13 +680,13 @@
         <div class="relative bg-muted border-b flex" style="height: 24px; flex-shrink: 0">
           <!-- Zoom controls in time ruler -->
           <div class="w-[120px] shrink-0 border-r flex items-center justify-center gap-0.5 px-1">
-            <Button variant="ghost" size="sm" onclick={zoom_out} title="Zoom out" class="h-5 w-5 p-0" disabled={false}>
+            <Button variant="ghost" size="sm" onclick={zoom_out} title="Zoom out" class="h-5 w-5 p-0 active:scale-90 transition-transform">
               <ZoomOut class="w-3 h-3" />
             </Button>
-            <Button variant="ghost" size="sm" onclick={zoom_reset} title="Reset zoom" class="h-5 w-5 p-0" disabled={false}>
+            <Button variant="ghost" size="sm" onclick={zoom_reset} title="Reset zoom" class="h-5 w-5 p-0 active:scale-90 transition-transform">
               <Maximize2 class="w-3 h-3" />
             </Button>
-            <Button variant="ghost" size="sm" onclick={zoom_in} title="Zoom in" class="h-5 w-5 p-0" disabled={false}>
+            <Button variant="ghost" size="sm" onclick={zoom_in} title="Zoom in" class="h-5 w-5 p-0 active:scale-90 transition-transform">
               <ZoomIn class="w-3 h-3" />
             </Button>
           </div>

@@ -632,19 +632,19 @@
   <!-- Action Buttons -->
   <div class="flex gap-2 px-4 py-3 bg-muted border-t shrink-0">
     {#if !isRecording}
-      <Button onclick={startRecording} class="flex-1 transition-all" variant="default">
+      <Button onclick={startRecording} class="flex-1 transition-all active:scale-95" variant="default">
         <Circle class="mr-2" />
         Start Recording
       </Button>
-      <Button onclick={closeWindow} variant="outline" class="flex-1 transition-all">
+      <Button onclick={closeWindow} variant="outline" class="flex-1 transition-all active:scale-95">
         <X class="mr-2" />
         Close
       </Button>
     {:else}
-      <Button onclick={stopRecording} variant="destructive" class="flex-1 transition-all">
+      <Button onclick={stopRecording} variant="destructive" class="flex-1 transition-all active:scale-95">
         Stop & Save
       </Button>
-      <Button onclick={cancelRecording} variant="outline" class="flex-1 transition-all">
+      <Button onclick={cancelRecording} variant="outline" class="flex-1 transition-all active:scale-95">
         Cancel
       </Button>
     {/if}

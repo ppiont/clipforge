@@ -31,7 +31,11 @@
       "WebFetch(domain:v2.tauri.app)",
       "WebFetch(domain:docs.rs)",
       "Bash(rustc:*)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(git push:*)",
+      "Bash(cargo clippy:*)",
+      "Bash(cargo build:*)",
+      "Bash(bunx shadcn-svelte@latest add:*)"
     ],
     "deny": [],
     "ask": []

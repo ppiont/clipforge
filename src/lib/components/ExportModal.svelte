@@ -326,11 +326,12 @@
       <Button
         variant="outline"
         disabled={isExporting}
+        class="active:scale-95 transition-transform"
         onclick={() => handleOpenChange(false)}
       >
         Cancel
       </Button>
-      <Button disabled={isExporting} onclick={handleExport}>
+      <Button disabled={isExporting} class="active:scale-95 transition-transform" onclick={handleExport}>
         {isExporting ? "Exporting..." : "Export Video"}
       </Button>
     </DialogFooter>

@@ -130,6 +130,7 @@
     <Button
       variant="default"
       size="sm"
+      class="active:scale-95 transition-transform"
       onclick={togglePlayPause}
       title="Play/Pause (Space)"
     >
@@ -145,6 +146,7 @@
     <Button
       variant="outline"
       size="sm"
+      class="active:scale-95 transition-transform"
       onclick={handleStop}
       title="Stop"
     >

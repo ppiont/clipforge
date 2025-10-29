@@ -373,6 +373,7 @@
               <Button
                 variant="outline"
                 size="icon-sm"
+                class="active:scale-90 transition-transform"
                 title="Add to Track 1"
                 onclick={(/** @type {MouseEvent} */ e) => {
                   e.stopPropagation();
@@ -384,6 +385,7 @@
               <Button
                 variant="destructive"
                 size="icon-sm"
+                class="active:scale-90 transition-transform"
                 title="Remove clip"
                 onclick={(/** @type {MouseEvent} */ e) => {
                   e.stopPropagation();
