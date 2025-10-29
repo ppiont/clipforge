@@ -611,12 +611,12 @@
 
   <!-- Mode Selector -->
   <div class="px-4 py-3 bg-muted border-t shrink-0">
-    <ToggleGroup.Root type="multiple" bind:value={selectedSources} disabled={isRecording} class="grid grid-cols-2 gap-2 border rounded-lg p-1 bg-background">
-      <ToggleGroup.Item value="screen" aria-label="Screen recording" class="transition-all duration-150 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground border">
+    <ToggleGroup.Root type="multiple" bind:value={selectedSources} disabled={isRecording} class="inline-flex w-full border rounded-lg overflow-hidden bg-background">
+      <ToggleGroup.Item value="screen" aria-label="Screen recording" class="flex-1 transition-all duration-150 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground border-r">
         <Monitor class="mr-2" />
         Screen
       </ToggleGroup.Item>
-      <ToggleGroup.Item value="webcam" aria-label="Webcam recording" class="transition-all duration-150 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground border">
+      <ToggleGroup.Item value="webcam" aria-label="Webcam recording" class="flex-1 transition-all duration-150 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
         <Camera class="mr-2" />
         Webcam
       </ToggleGroup.Item>
