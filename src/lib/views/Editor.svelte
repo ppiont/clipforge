@@ -70,9 +70,14 @@
     }
   }
 
-  function handleRecordClick() {
-    // Task 8.1: Open recorder window
-    console.log('Record button clicked (coming in Task 8.1)');
+  async function handleRecordClick() {
+    try {
+      await invoke('open_recorder_window');
+      console.log('Recorder window opened');
+    } catch (err) {
+      console.error('Error opening recorder window:', err);
+      alert(`Failed to open recorder: ${err}`);
+    }
   }
 
   function handleExportClick() {

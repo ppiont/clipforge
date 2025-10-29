@@ -1,7 +1,6 @@
 use ffmpeg_next as ffmpeg;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use std::process::Command;
 use tauri::Manager;
 use tauri_plugin_shell::ShellExt;
 
@@ -165,7 +164,7 @@ fn generate_filmstrip(
         app.shell()
             .sidecar("ffmpeg")
             .map_err(|e| format!("Failed to create FFmpeg sidecar: {}", e))?
-            .args(&[
+            .args([
                 "-y", // Overwrite existing file
                 "-i",
                 &video_path, // Input file
@@ -173,7 +172,7 @@ fn generate_filmstrip(
                 &select_filter, // Filter: select frames, scale, tile vertically
                 "-frames",
                 "1", // Output 1 image (the tiled result)
-                &filmstrip_path.to_string_lossy().to_string(),
+                filmstrip_path.to_string_lossy().as_ref(),
             ])
             .output()
             .await
@@ -217,14 +216,14 @@ fn generate_thumbnail(app: tauri::AppHandle, video_path: String, timestamp: f64)
         app.shell()
             .sidecar("ffmpeg")
             .map_err(|e| format!("Failed to create FFmpeg sidecar: {}", e))?
-            .args(&[
+            .args([
                 "-y", // Overwrite existing file
                 "-ss", &timestamp.to_string(), // Seek to timestamp
                 "-i", &video_path, // Input file
                 "-vframes", "1", // Extract 1 frame
                 "-vf", "scale=160:90", // Scale to thumbnail size (16:9 aspect ratio)
                 "-q:v", "2", // High quality
-                &thumbnail_path.to_string_lossy().to_string(),
+                thumbnail_path.to_string_lossy().as_ref(),
             ])
             .output()
             .await
@@ -399,6 +398,63 @@ fn export_video(app: tauri::AppHandle, request: ExportRequest, clips_data: Vec<V
     Ok(request.output_path)
 }
 
+/// Open the recorder window (400x300, always-on-top)
+#[tauri::command]
+fn open_recorder_window(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri::WebviewWindowBuilder;
+    use tauri::WebviewUrl;
+
+    // Check if recorder window already exists
+    if app.get_webview_window("recorder").is_some() {
+        return Err("Recorder window already open".to_string());
+    }
+
+    WebviewWindowBuilder::new(&app, "recorder", WebviewUrl::App("/recorder".into()))
+        .title("ClipForge Recorder")
+        .inner_size(400.0, 300.0)
+        .resizable(false)
+        .always_on_top(true)
+        .build()
+        .map_err(|e| format!("Failed to create recorder window: {}", e))?;
+
+    Ok(())
+}
+
+/// Close the recorder window
+#[tauri::command]
+fn close_recorder_window(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("recorder") {
+        window
+            .close()
+            .map_err(|e| format!("Failed to close recorder window: {}", e))?;
+    }
+    Ok(())
+}
+
+/// Save recording blob to disk
+/// Returns the full file path of the saved recording
+#[tauri::command]
+fn save_recording(blob: Vec<u8>, filename: String) -> Result<String, String> {
+    use std::fs;
+
+    // Create ClipForge directory in user's Documents folder
+    let home_dir = dirs::document_dir()
+        .ok_or_else(|| "Could not find Documents directory".to_string())?;
+
+    let clipforge_dir = home_dir.join("ClipForge");
+    fs::create_dir_all(&clipforge_dir)
+        .map_err(|e| format!("Failed to create ClipForge directory: {}", e))?;
+
+    // Build output path
+    let output_path = clipforge_dir.join(&filename);
+
+    // Write blob to file
+    fs::write(&output_path, blob)
+        .map_err(|e| format!("Failed to write recording file: {}", e))?;
+
+    Ok(output_path.to_string_lossy().to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Initialize FFmpeg
@@ -414,7 +470,10 @@ pub fn run() {
             pick_video_file_by_path,
             generate_thumbnail,
             generate_filmstrip,
-            export_video
+            export_video,
+            open_recorder_window,
+            close_recorder_window,
+            save_recording
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

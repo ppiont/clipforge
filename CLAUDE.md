@@ -99,8 +99,8 @@ Action Buttons (40px):
 - **Build Tool**: FFmpeg for video processing
 - **Package Manager**: Bun
 - **TypeScript**: Strict mode enabled
-- **UI Components**: shadcn-svelte (always use these components)
-- **Icons**: @lucide/svelte (always use Lucide icons, never emojis)
+- **UI Components**: shadcn-svelte (ALWAYS use these components - never create custom buttons, inputs, or UI elements)
+- **Icons**: @lucide/svelte (CRITICAL: Use `@lucide/svelte` NOT `lucide-svelte` - this is the Svelte 5 compatible version)
 
 ## Frontend Architecture
 
@@ -496,6 +496,18 @@ Focus testing on:
 - Canvas rendering requires web context (can't do in Rust)
 
 ## Documentation Best Practices
+
+**CRITICAL UI/Icon Package Rules:**
+- **Icons**: ALWAYS use `@lucide/svelte` (Svelte 5 compatible), NEVER `lucide-svelte`
+  ```javascript
+  // ✅ CORRECT
+  import { Circle, X } from '@lucide/svelte';
+
+  // ❌ WRONG
+  import { Circle, X } from 'lucide-svelte';
+  ```
+- **UI Components**: ALWAYS use shadcn-svelte components, NEVER create custom buttons/inputs/selects
+- **No Emojis**: Use Lucide icons instead of emoji characters in UI
 
 **CRITICAL: ALWAYS use Context7 MCP for up-to-date library documentation - NO EXCEPTIONS:**
 - **MANDATORY FIRST STEP**: Use `mcp__context7__resolve-library-id` to find the library (Tauri, Svelte, shadcn-svelte, etc.)
