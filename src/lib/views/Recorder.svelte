@@ -603,19 +603,13 @@
   </div>
 
   <!-- Mode Selector -->
-  <div class="flex flex-col gap-2 px-4 py-3 bg-muted border-t shrink-0">
-    <div class="flex items-center justify-between">
-      <span class="text-xs font-medium text-muted-foreground">Recording Sources</span>
-      {#if recordingMode === 'both'}
-        <Badge variant="secondary" class="text-xs">Screen + Webcam</Badge>
-      {/if}
-    </div>
-    <ToggleGroup.Root type="multiple" bind:value={selectedSources} disabled={isRecording} class="justify-start gap-2">
-      <ToggleGroup.Item value="screen" aria-label="Screen recording" class="flex-1 transition-all duration-150">
+  <div class="px-4 py-3 bg-muted border-t shrink-0">
+    <ToggleGroup.Root type="multiple" bind:value={selectedSources} disabled={isRecording} class="grid grid-cols-2 gap-2 border rounded-lg p-1 bg-background">
+      <ToggleGroup.Item value="screen" aria-label="Screen recording" class="transition-all duration-150 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground border">
         <Monitor class="mr-2" />
         Screen
       </ToggleGroup.Item>
-      <ToggleGroup.Item value="webcam" aria-label="Webcam recording" class="flex-1 transition-all duration-150">
+      <ToggleGroup.Item value="webcam" aria-label="Webcam recording" class="transition-all duration-150 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground border">
         <Camera class="mr-2" />
         Webcam
       </ToggleGroup.Item>
