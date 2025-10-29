@@ -403,12 +403,17 @@ fn export_video(app: tauri::AppHandle, request: ExportRequest, clips_data: Vec<V
 fn open_recorder_window(app: tauri::AppHandle) -> Result<(), String> {
     use tauri::WebviewWindowBuilder;
     use tauri::WebviewUrl;
+    use tauri::Manager;
 
     // Check if recorder window already exists
-    if app.get_webview_window("recorder").is_some() {
-        return Err("Recorder window already open".to_string());
+    if let Some(window) = app.get_webview_window("recorder") {
+        // Window exists - bring it to front and focus it
+        window.show().map_err(|e| format!("Failed to show recorder window: {}", e))?;
+        window.set_focus().map_err(|e| format!("Failed to focus recorder window: {}", e))?;
+        return Ok(());
     }
 
+    // Window doesn't exist - create it
     WebviewWindowBuilder::new(&app, "recorder", WebviewUrl::App("/recorder".into()))
         .title("ClipForge Recorder")
         .inner_size(400.0, 500.0)
