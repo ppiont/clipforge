@@ -398,7 +398,7 @@ fn export_video(app: tauri::AppHandle, request: ExportRequest, clips_data: Vec<V
     Ok(request.output_path)
 }
 
-/// Open the recorder window (400x300, always-on-top)
+/// Open the recorder window (400x500, always-on-top)
 #[tauri::command]
 fn open_recorder_window(app: tauri::AppHandle) -> Result<(), String> {
     use tauri::WebviewWindowBuilder;
@@ -411,7 +411,7 @@ fn open_recorder_window(app: tauri::AppHandle) -> Result<(), String> {
 
     WebviewWindowBuilder::new(&app, "recorder", WebviewUrl::App("/recorder".into()))
         .title("ClipForge Recorder")
-        .inner_size(400.0, 300.0)
+        .inner_size(400.0, 500.0)
         .resizable(false)
         .always_on_top(true)
         .build()
@@ -455,6 +455,59 @@ fn save_recording(blob: Vec<u8>, filename: String) -> Result<String, String> {
     Ok(output_path.to_string_lossy().to_string())
 }
 
+/// Convert WebM recording to MP4 using FFmpeg sidecar
+/// Returns the full file path of the MP4 file
+#[tauri::command]
+fn convert_webm_to_mp4(app: tauri::AppHandle, input_path: String, output_filename: String) -> Result<String, String> {
+    use std::fs;
+    use std::path::PathBuf;
+
+    let input_path_buf = PathBuf::from(&input_path);
+
+    // Build output path in ClipForge directory
+    let home_dir = dirs::document_dir()
+        .ok_or_else(|| "Could not find Documents directory".to_string())?;
+    let clipforge_dir = home_dir.join("ClipForge");
+    let output_path = clipforge_dir.join(&output_filename);
+
+    // Build FFmpeg command: convert WebM to MP4 with H.264 codec
+    let args = vec![
+        "-i", &input_path,
+        "-c:v", "libx264",      // H.264 video codec
+        "-preset", "fast",      // Encoding speed
+        "-crf", "23",           // Quality (lower = better, 23 is default)
+        "-c:a", "aac",          // AAC audio codec
+        "-b:a", "192k",         // Audio bitrate
+        "-movflags", "+faststart", // Enable streaming
+        "-y",                   // Overwrite output file
+        output_path.to_str().ok_or("Invalid output path")?,
+    ];
+
+    // Execute FFmpeg sidecar
+    let output = tauri::async_runtime::block_on(async {
+        app.shell()
+            .sidecar("ffmpeg")
+            .map_err(|e| format!("Failed to get ffmpeg sidecar: {}", e))?
+            .args(args)
+            .output()
+            .await
+            .map_err(|e| format!("Failed to execute ffmpeg: {}", e))
+    })?;
+
+    // Check if conversion succeeded
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("FFmpeg conversion failed: {}", stderr));
+    }
+
+    // Delete temporary WebM file
+    if let Err(e) = fs::remove_file(&input_path_buf) {
+        eprintln!("Warning: Failed to delete temp WebM file: {}", e);
+    }
+
+    Ok(output_path.to_string_lossy().to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Initialize FFmpeg
@@ -473,7 +526,8 @@ pub fn run() {
             export_video,
             open_recorder_window,
             close_recorder_window,
-            save_recording
+            save_recording,
+            convert_webm_to_mp4
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
