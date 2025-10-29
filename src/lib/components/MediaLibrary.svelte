@@ -318,7 +318,7 @@
   <div class="px-4 py-3 border-b bg-muted">
     <div class="flex items-center justify-between">
       <h3 class="text-sm font-semibold">Media Library</h3>
-      <Badge class="" variant="secondary" href="">{$clipsStore.length}</Badge>
+      <Badge variant="secondary">{$clipsStore.length}</Badge>
     </div>
   </div>
 
@@ -328,10 +328,10 @@
     <div class="p-3 space-y-2">
       {#each $clipsStore as clip (clip.id)}
         <Card
-          class={`p-3 cursor-move transition-all hover:shadow-md ${
+          class={`p-3 cursor-move transition-all duration-200 active:scale-95 ${
             $playbackStore.selectedClipId === clip.id
-              ? "ring-2 ring-primary bg-accent"
-              : "hover:bg-muted"
+              ? "ring-[3px] ring-primary bg-accent shadow-md"
+              : "hover:bg-muted hover:shadow-lg hover:-translate-y-0.5"
           }`}
           draggable={true}
           onclick={() => selectClip(clip.id)}
@@ -364,37 +364,33 @@
               {/if}
             </div>
             <div class="flex-1 min-w-0">
-              <p class="text-sm font-medium truncate">{clip.filename}</p>
+              <p class="text-sm font-medium truncate" title={clip.filename}>{clip.filename}</p>
               <p class="text-xs text-muted-foreground">
                 {formatTime(clip.duration)} • {clip.resolution}
               </p>
             </div>
             <div class="flex gap-1">
               <Button
-                class="shrink-0"
                 variant="outline"
                 size="icon-sm"
-                disabled={false}
                 title="Add to Track 1"
                 onclick={(/** @type {MouseEvent} */ e) => {
                   e.stopPropagation();
                   addToTimeline(clip.id, 0);
                 }}
               >
-                <Plus class="w-3 h-3" />
+                <Plus />
               </Button>
               <Button
-                class="shrink-0 bg-destructive hover:bg-destructive/90 text-white rounded-lg cursor-pointer"
-                variant="ghost"
+                variant="destructive"
                 size="icon-sm"
-                disabled={false}
                 title="Remove clip"
                 onclick={(/** @type {MouseEvent} */ e) => {
                   e.stopPropagation();
                   removeClip(clip.id);
                 }}
               >
-                <X class="w-4 h-4" />
+                <X />
               </Button>
             </div>
           </div>

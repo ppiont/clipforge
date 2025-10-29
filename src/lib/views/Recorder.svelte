@@ -547,23 +547,23 @@
 
 <div class="flex flex-col h-screen w-full bg-background overflow-hidden">
   <!-- Status Bar -->
-  <div class="flex items-center justify-between px-4 py-2 bg-muted border-b shrink-0">
+  <div class="flex items-center justify-between px-4 py-3 border-b shrink-0 transition-colors duration-200 {isRecording ? 'bg-destructive/10 border-destructive/30' : 'bg-muted'}">
     <div class="flex items-center gap-2">
       {#if isRecording}
-        <Circle class="w-3 h-3 fill-destructive text-destructive animate-pulse" />
-        <span class="text-sm text-destructive font-medium">Recording...</span>
+        <Circle class="w-4 h-4 fill-destructive text-destructive animate-pulse" />
+        <span class="text-sm text-destructive font-semibold">Recording...</span>
       {:else}
-        <Circle class="w-3 h-3 text-muted-foreground" />
-        <span class="text-sm text-muted-foreground">Ready</span>
+        <Circle class="w-4 h-4 text-muted-foreground" />
+        <span class="text-sm text-muted-foreground font-medium">Ready</span>
       {/if}
     </div>
-    <Badge variant="secondary" class="font-mono text-xs">
+    <Badge variant={isRecording ? "outline" : "secondary"} class="font-mono text-xs tabular-nums {isRecording ? 'border-destructive/50 text-destructive' : ''}">
       {Math.floor(recordedDuration / 60)}:{(recordedDuration % 60).toString().padStart(2, '0')}
     </Badge>
   </div>
 
   <!-- Preview Area -->
-  <div class="flex-1 bg-black flex items-center justify-center overflow-hidden min-h-0">
+  <div class="flex-1 bg-slate-950 flex items-center justify-center overflow-hidden min-h-0">
     {#if webcamStream}
       <!-- Show webcam feed (live preview or during recording) -->
       <!-- svelte-ignore a11y_media_has_caption -->
@@ -578,21 +578,21 @@
         Recording screen...
       </p>
     {:else}
-      <div class="text-center space-y-2">
+      <div class="text-center space-y-3">
         <div class="flex items-center justify-center gap-2">
           {#if selectedSources.includes('screen')}
-            <Monitor class="w-5 h-5 text-primary" />
+            <Monitor class="text-muted-foreground/70" />
           {/if}
           {#if selectedSources.includes('webcam')}
-            <Camera class="w-5 h-5 text-primary" />
+            <Camera class="text-muted-foreground/70" />
           {/if}
         </div>
-        <p class="text-sm text-muted-foreground">
+        <p class="text-sm text-muted-foreground font-medium">
           {recordingMode === 'screen' ? 'Screen recording' :
            recordingMode === 'webcam' ? 'Webcam recording' :
            'Screen + Webcam (PiP)'}
         </p>
-        <p class="text-xs text-muted-foreground/60">
+        <p class="text-xs text-muted-foreground {selectedSources.includes('webcam') ? 'animate-pulse' : ''}">
           {selectedSources.includes('webcam') ? 'Waiting for webcam...' : 'Select sources below, then click Start'}
         </p>
       </div>
@@ -611,12 +611,12 @@
       {/if}
     </div>
     <ToggleGroup.Root type="multiple" bind:value={selectedSources} disabled={isRecording} class="justify-start gap-2">
-      <ToggleGroup.Item value="screen" aria-label="Screen recording" class="flex-1 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
-        <Monitor class="w-4 h-4 mr-2" />
+      <ToggleGroup.Item value="screen" aria-label="Screen recording" class="flex-1 transition-all duration-150">
+        <Monitor class="mr-2" />
         Screen
       </ToggleGroup.Item>
-      <ToggleGroup.Item value="webcam" aria-label="Webcam recording" class="flex-1 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">
-        <Camera class="w-4 h-4 mr-2" />
+      <ToggleGroup.Item value="webcam" aria-label="Webcam recording" class="flex-1 transition-all duration-150">
+        <Camera class="mr-2" />
         Webcam
       </ToggleGroup.Item>
     </ToggleGroup.Root>
@@ -624,27 +624,27 @@
 
   <!-- Error Display -->
   {#if error}
-    <Alert.Root variant="destructive" class="mx-4 my-2 shrink-0">
-      <Alert.Description class="text-xs">{error}</Alert.Description>
+    <Alert.Root variant="destructive" class="mx-4 my-3 shrink-0">
+      <Alert.Description class="text-sm">{error}</Alert.Description>
     </Alert.Root>
   {/if}
 
   <!-- Action Buttons -->
-  <div class="flex gap-2 p-3 bg-muted border-t shrink-0">
+  <div class="flex gap-2 px-4 py-3 bg-muted border-t shrink-0">
     {#if !isRecording}
-      <Button onclick={startRecording} class="flex-1" variant="default">
-        <Circle class="w-4 h-4 mr-2" />
+      <Button onclick={startRecording} class="flex-1 transition-all" variant="default">
+        <Circle class="mr-2" />
         Start Recording
       </Button>
-      <Button onclick={closeWindow} variant="outline" class="flex-1">
-        <X class="w-4 h-4 mr-2" />
+      <Button onclick={closeWindow} variant="outline" class="flex-1 transition-all">
+        <X class="mr-2" />
         Close
       </Button>
     {:else}
-      <Button onclick={stopRecording} variant="destructive" class="flex-1">
+      <Button onclick={stopRecording} variant="destructive" class="flex-1 transition-all">
         Stop & Save
       </Button>
-      <Button onclick={cancelRecording} variant="outline" class="flex-1">
+      <Button onclick={cancelRecording} variant="outline" class="flex-1 transition-all">
         Cancel
       </Button>
     {/if}

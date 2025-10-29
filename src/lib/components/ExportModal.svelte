@@ -175,11 +175,10 @@
 </script>
 
 <Dialog open={show} onOpenChange={handleOpenChange}>
-  <DialogContent class="sm:max-w-[550px]" portalProps={{}}>
-    <div id="export-modal-portal"></div>
+  <DialogContent class="sm:max-w-[550px]">
     <DialogHeader>
       <DialogTitle class="flex items-center gap-2">
-        <FileVideoCamera class="w-5 h-5" />
+        <FileVideoCamera />
         Export Video
       </DialogTitle>
       <DialogDescription>
@@ -200,11 +199,11 @@
         <Tabs bind:value={activeTab} class="w-full">
           <TabsList class="grid w-full grid-cols-2">
             <TabsTrigger value="video" class="flex items-center gap-2">
-              <Monitor class="w-4 h-4" />
+              <Monitor />
               Video
             </TabsTrigger>
             <TabsTrigger value="advanced" class="flex items-center gap-2">
-              <Settings class="w-4 h-4" />
+              <Settings />
               Advanced
             </TabsTrigger>
           </TabsList>
@@ -223,10 +222,7 @@
                     <Select.Trigger class="w-[200px]">
                       <span>{selectedFormat.label}</span>
                     </Select.Trigger>
-                    <Select.Content
-                      class="w-[200px]"
-                      portalProps={{ to: "#export-modal-portal" }}
-                    >
+                    <Select.Content class="w-[200px]">
                       <Select.Group>
                         {#each EXPORT_FORMATS as fmt (fmt.value)}
                           <Select.Item value={fmt.value} label={fmt.label} />
@@ -246,10 +242,7 @@
                     <Select.Trigger class="w-[200px]">
                       <span>{selectedResolution.label}</span>
                     </Select.Trigger>
-                    <Select.Content
-                      class="w-[200px]"
-                      portalProps={{ to: "#export-modal-portal" }}
-                    >
+                    <Select.Content class="w-[200px]">
                       <Select.Group>
                         {#each EXPORT_RESOLUTIONS as res (res.value)}
                           <Select.Item value={res.value} label={res.label} />

@@ -746,9 +746,9 @@
             {/if}
             {#each getClipsForTrack(0) as timelineClip (timelineClip.id)}
               <div
-                class={`absolute text-primary-foreground text-xs px-2 rounded flex items-center justify-between cursor-pointer select-none overflow-hidden hover:brightness-110 ${
+                class={`absolute text-primary-foreground text-xs px-2 rounded flex items-center justify-between cursor-pointer select-none overflow-hidden hover:brightness-105 ${
                   $playbackStore.selectedTimelineClipId === timelineClip.id
-                    ? 'ring-4 ring-primary shadow-2xl brightness-125'
+                    ? 'ring-2 ring-primary shadow-lg brightness-110'
                     : ''
                 } ${activeTrimClipId !== timelineClip.id && !isCurrentlyTrimming ? 'transition-all duration-200 ease-out' : ''}`}
                 style="
@@ -795,7 +795,7 @@
 
                 <!-- Left trim handle -->
                 <div
-                  class="absolute left-0 top-0 w-2 h-full bg-primary-foreground/30 hover:bg-primary-foreground/50 cursor-ew-resize z-10"
+                  class="absolute left-0 top-0 w-2 h-full bg-primary-foreground/30 hover:bg-primary hover:scale-x-150 cursor-ew-resize z-10 transition-all duration-150"
                   onmousedown={(e) => startTrimDrag(e, timelineClip.id, 'start')}
                   role="slider"
                   aria-label="Trim clip start"
@@ -809,7 +809,7 @@
 
                 <!-- Right trim handle -->
                 <div
-                  class="absolute right-0 top-0 w-2 h-full bg-primary-foreground/30 hover:bg-primary-foreground/50 cursor-ew-resize z-10"
+                  class="absolute right-0 top-0 w-2 h-full bg-primary-foreground/30 hover:bg-primary hover:scale-x-150 cursor-ew-resize z-10 transition-all duration-150"
                   onmousedown={(e) => startTrimDrag(e, timelineClip.id, 'end')}
                   role="slider"
                   aria-label="Trim clip end"
@@ -867,9 +867,9 @@
             {/if}
             {#each getClipsForTrack(1) as timelineClip (timelineClip.id)}
               <div
-                class={`absolute text-primary-foreground text-xs px-2 rounded flex items-center justify-between cursor-pointer select-none overflow-hidden hover:brightness-110 ${
+                class={`absolute text-primary-foreground text-xs px-2 rounded flex items-center justify-between cursor-pointer select-none overflow-hidden hover:brightness-105 ${
                   $playbackStore.selectedTimelineClipId === timelineClip.id
-                    ? 'ring-4 ring-primary shadow-2xl brightness-125'
+                    ? 'ring-2 ring-primary shadow-lg brightness-110'
                     : ''
                 } ${activeTrimClipId !== timelineClip.id && !isCurrentlyTrimming ? 'transition-all duration-200 ease-out' : ''}`}
                 style="
@@ -916,7 +916,7 @@
 
                 <!-- Left trim handle -->
                 <div
-                  class="absolute left-0 top-0 w-2 h-full bg-primary-foreground/30 hover:bg-primary-foreground/50 cursor-ew-resize z-10"
+                  class="absolute left-0 top-0 w-2 h-full bg-primary-foreground/30 hover:bg-primary hover:scale-x-150 cursor-ew-resize z-10 transition-all duration-150"
                   onmousedown={(e) => startTrimDrag(e, timelineClip.id, 'start')}
                   role="slider"
                   aria-label="Trim clip start"
@@ -930,7 +930,7 @@
 
                 <!-- Right trim handle -->
                 <div
-                  class="absolute right-0 top-0 w-2 h-full bg-primary-foreground/30 hover:bg-primary-foreground/50 cursor-ew-resize z-10"
+                  class="absolute right-0 top-0 w-2 h-full bg-primary-foreground/30 hover:bg-primary hover:scale-x-150 cursor-ew-resize z-10 transition-all duration-150"
                   onmousedown={(e) => startTrimDrag(e, timelineClip.id, 'end')}
                   role="slider"
                   aria-label="Trim clip end"

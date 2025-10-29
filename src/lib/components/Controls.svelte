@@ -125,64 +125,60 @@
   });
 </script>
 
-<footer class="flex items-center gap-3 h-[50px] px-4 bg-background border-t">
+<footer class="flex items-center gap-4 h-[50px] px-4 bg-background border-t">
   <div class="flex gap-2">
     <Button
-      class=""
       variant="default"
       size="sm"
-      disabled={false}
       onclick={togglePlayPause}
       title="Play/Pause (Space)"
     >
       {#if $playbackStore.isPlaying}
-        <Pause class="w-4 h-4" />
+        <Pause />
         Pause
       {:else}
-        <Play class="w-4 h-4" />
+        <Play />
         Play
       {/if}
     </Button>
 
     <Button
-      class=""
       variant="outline"
       size="sm"
-      disabled={false}
       onclick={handleStop}
       title="Stop"
     >
-      <Square class="w-4 h-4" />
+      <Square />
       Stop
     </Button>
   </div>
 
   <div class="flex gap-2">
     <Button
-      class=""
       variant="outline"
       size="sm"
       disabled={true}
+      class="cursor-not-allowed"
       title="Split clip (Coming soon)"
     >
-      <Scissors class="w-4 h-4" />
+      <Scissors />
       Split
     </Button>
     <Button
-      class=""
       variant="outline"
       size="sm"
       disabled={true}
+      class="cursor-not-allowed"
       title="Delete clip (Coming soon)"
     >
-      <Trash2 class="w-4 h-4" />
+      <Trash2 />
       Delete
     </Button>
   </div>
 
   <div class="flex-1"></div>
 
-  <div class="flex items-center gap-1 text-xs text-muted-foreground">
+  <div class="flex items-center gap-2 px-3 py-1 bg-muted rounded-md text-xs text-muted-foreground font-medium">
     {#if $playbackStore.isPlaying}
       <Play class="w-3 h-3" />
       Playing
