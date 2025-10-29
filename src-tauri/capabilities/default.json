@@ -7,6 +7,19 @@
     "core:default",
     "opener:default",
     "dialog:default",
-    "dialog:allow-save"
+    "dialog:allow-save",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "name": "binaries/ffmpeg",
+          "args": true
+        },
+        {
+          "name": "binaries/ffprobe",
+          "args": true
+        }
+      ]
+    }
   ]
 }

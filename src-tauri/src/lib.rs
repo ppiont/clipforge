@@ -1,6 +1,9 @@
+use ffmpeg_next as ffmpeg;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::process::Command;
+use tauri::Manager;
+use tauri_plugin_shell::ShellExt;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct VideoMetadata {
@@ -36,59 +39,41 @@ fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
 }
 
-/// Extracts video metadata using FFmpeg binary with JSON output
+/// Extracts video metadata using FFmpeg Rust bindings
 /// Returns duration (in seconds), resolution (WxH), and codec info
 fn extract_video_metadata(file_path: &str) -> Result<VideoMetadata, String> {
-    // Use ffprobe (comes with ffmpeg) to get metadata as JSON
-    let output = Command::new("ffprobe")
-        .args(&[
-            "-v", "quiet",
-            "-print_format", "json",
-            "-show_format",
-            "-show_streams",
-            file_path
-        ])
-        .output()
-        .map_err(|e| format!("Failed to run ffprobe: {}. Make sure FFmpeg is installed.", e))?;
+    // Open the file with FFmpeg
+    let input = ffmpeg::format::input(&file_path)
+        .map_err(|e| format!("Failed to open video file: {}", e))?;
 
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("ffprobe failed: {}", stderr));
-    }
-
-    let json_str = String::from_utf8_lossy(&output.stdout);
-    let json: serde_json::Value = serde_json::from_str(&json_str)
-        .map_err(|e| format!("Failed to parse ffprobe JSON: {}", e))?;
-
-    // Extract duration from format section
-    let duration = json["format"]["duration"]
-        .as_str()
-        .and_then(|s| s.parse::<f64>().ok())
-        .ok_or_else(|| "Failed to parse duration".to_string())?;
+    // Get duration
+    let duration = input.duration() as f64 / ffmpeg::ffi::AV_TIME_BASE as f64;
 
     // Find the video stream
-    let video_stream = json["streams"]
-        .as_array()
-        .and_then(|streams| {
-            streams.iter().find(|s| {
-                s["codec_type"].as_str() == Some("video")
-            })
-        })
-        .ok_or_else(|| "No video stream found".to_string())?;
+    let stream = input
+        .streams()
+        .best(ffmpeg::media::Type::Video)
+        .ok_or_else(|| "No video stream found in file".to_string())?;
+
+    // Get codec context from stream parameters
+    let codec = ffmpeg::codec::context::Context::from_parameters(stream.parameters())
+        .map_err(|e| format!("Failed to get codec context: {}", e))?;
+
+    // Get codec name before consuming codec
+    let codec_name = codec
+        .codec()
+        .map(|c| c.name().to_string())
+        .unwrap_or_else(|| "unknown".to_string());
+
+    // Get video decoder to access video properties (this consumes codec)
+    let video = codec
+        .decoder()
+        .video()
+        .map_err(|e| format!("Failed to get video decoder: {}", e))?;
 
     // Get resolution
-    let width = video_stream["width"]
-        .as_u64()
-        .ok_or_else(|| "Failed to get width".to_string())?;
-    let height = video_stream["height"]
-        .as_u64()
-        .ok_or_else(|| "Failed to get height".to_string())?;
-
-    // Get codec name
-    let codec_name = video_stream["codec_name"]
-        .as_str()
-        .unwrap_or("unknown")
-        .to_string();
+    let width = video.width();
+    let height = video.height();
 
     let file_name = PathBuf::from(file_path)
         .file_name()
@@ -134,6 +119,7 @@ fn pick_video_file_by_path(path: String) -> Result<VideoMetadata, String> {
 /// Returns the file path to the generated filmstrip PNG
 #[tauri::command]
 fn generate_filmstrip(
+    app: tauri::AppHandle,
     video_path: String,
     clip_id: String,
     frame_count: u32,
@@ -174,17 +160,25 @@ fn generate_filmstrip(
         frame_count
     );
 
-    let output = Command::new("ffmpeg")
-        .arg("-y") // Overwrite existing file
-        .arg("-i")
-        .arg(&video_path) // Input file
-        .arg("-vf")
-        .arg(&select_filter) // Filter: select frames, scale, tile vertically
-        .arg("-frames")
-        .arg("1") // Output 1 image (the tiled result)
-        .arg(filmstrip_path.to_string_lossy().to_string())
-        .output()
-        .map_err(|e| format!("Failed to run FFmpeg: {}", e))?;
+    // Use bundled FFmpeg sidecar
+    let output = tauri::async_runtime::block_on(async {
+        app.shell()
+            .sidecar("ffmpeg")
+            .map_err(|e| format!("Failed to create FFmpeg sidecar: {}", e))?
+            .args(&[
+                "-y", // Overwrite existing file
+                "-i",
+                &video_path, // Input file
+                "-vf",
+                &select_filter, // Filter: select frames, scale, tile vertically
+                "-frames",
+                "1", // Output 1 image (the tiled result)
+                &filmstrip_path.to_string_lossy().to_string(),
+            ])
+            .output()
+            .await
+            .map_err(|e| format!("Failed to run FFmpeg: {}", e))
+    })?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -198,7 +192,7 @@ fn generate_filmstrip(
 /// Generate a thumbnail image from a video file at a specific timestamp
 /// Returns the base64-encoded PNG image data URL
 #[tauri::command]
-fn generate_thumbnail(video_path: String, timestamp: f64) -> Result<String, String> {
+fn generate_thumbnail(app: tauri::AppHandle, video_path: String, timestamp: f64) -> Result<String, String> {
     println!("Generating thumbnail for: {} at {}s", video_path, timestamp);
     use std::fs;
     use std::env;
@@ -218,17 +212,24 @@ fn generate_thumbnail(video_path: String, timestamp: f64) -> Result<String, Stri
     );
     let thumbnail_path = temp_dir.join(thumbnail_filename);
 
-    // Use FFmpeg to extract frame at timestamp
-    let output = Command::new("ffmpeg")
-        .arg("-y") // Overwrite existing file
-        .arg("-ss").arg(timestamp.to_string()) // Seek to timestamp
-        .arg("-i").arg(&video_path) // Input file
-        .arg("-vframes").arg("1") // Extract 1 frame
-        .arg("-vf").arg("scale=160:90") // Scale to thumbnail size (16:9 aspect ratio)
-        .arg("-q:v").arg("2") // High quality
-        .arg(thumbnail_path.to_string_lossy().to_string())
-        .output()
-        .map_err(|e| format!("Failed to run FFmpeg: {}", e))?;
+    // Use bundled FFmpeg sidecar to extract frame at timestamp
+    let output = tauri::async_runtime::block_on(async {
+        app.shell()
+            .sidecar("ffmpeg")
+            .map_err(|e| format!("Failed to create FFmpeg sidecar: {}", e))?
+            .args(&[
+                "-y", // Overwrite existing file
+                "-ss", &timestamp.to_string(), // Seek to timestamp
+                "-i", &video_path, // Input file
+                "-vframes", "1", // Extract 1 frame
+                "-vf", "scale=160:90", // Scale to thumbnail size (16:9 aspect ratio)
+                "-q:v", "2", // High quality
+                &thumbnail_path.to_string_lossy().to_string(),
+            ])
+            .output()
+            .await
+            .map_err(|e| format!("Failed to run FFmpeg: {}", e))
+    })?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -278,7 +279,7 @@ fn base64_encode(data: &[u8]) -> String {
 /// For MVP: Simple implementation that handles single clips
 /// TODO: Add multi-clip concatenation and overlay support
 #[tauri::command]
-fn export_video(request: ExportRequest, clips_data: Vec<VideoMetadata>) -> Result<String, String> {
+fn export_video(app: tauri::AppHandle, request: ExportRequest, clips_data: Vec<VideoMetadata>) -> Result<String, String> {
     if request.clips.is_empty() {
         return Err("No clips to export".to_string());
     }
@@ -303,73 +304,92 @@ fn export_video(request: ExportRequest, clips_data: Vec<VideoMetadata>) -> Resul
         _ => None, // Source resolution
     };
 
-    // Build FFmpeg command
-    let mut cmd = Command::new("ffmpeg");
-    cmd.arg("-y") // Overwrite output file
-        .arg("-i")
-        .arg(&source_clip.path);
+    // Build FFmpeg command arguments
+    let mut args: Vec<String> = vec![
+        "-y".to_string(), // Overwrite output file
+        "-i".to_string(),
+        source_clip.path.clone(),
+    ];
 
     // Add trim if needed
     if timeline_clip.trim_start > 0.0 || timeline_clip.trim_end < source_clip.duration {
-        cmd.arg("-ss").arg(timeline_clip.trim_start.to_string());
+        args.push("-ss".to_string());
+        args.push(timeline_clip.trim_start.to_string());
         let trim_duration = timeline_clip.trim_end - timeline_clip.trim_start;
-        cmd.arg("-t").arg(trim_duration.to_string());
+        args.push("-t".to_string());
+        args.push(trim_duration.to_string());
     }
 
     // Add scale filter if needed
     if let Some(scale) = scale_filter {
-        cmd.arg("-vf").arg(scale);
+        args.push("-vf".to_string());
+        args.push(scale.to_string());
     }
 
     // Output settings based on format
     match request.format.as_str() {
         "webm" => {
             // WebM: VP9 video + Opus audio
-            cmd.arg("-c:v")
-                .arg("libvpx-vp9")
-                .arg("-crf")
-                .arg("30") // Quality (0-63, lower = better)
-                .arg("-b:v")
-                .arg("0") // Use CRF mode
-                .arg("-c:a")
-                .arg("libopus")
-                .arg("-b:a")
-                .arg("128k");
+            args.extend_from_slice(&[
+                "-c:v".to_string(),
+                "libvpx-vp9".to_string(),
+                "-crf".to_string(),
+                "30".to_string(), // Quality (0-63, lower = better)
+                "-b:v".to_string(),
+                "0".to_string(), // Use CRF mode
+                "-c:a".to_string(),
+                "libopus".to_string(),
+                "-b:a".to_string(),
+                "128k".to_string(),
+            ]);
         }
         "mov" => {
             // MOV: H.264 video + AAC audio (QuickTime compatible)
-            cmd.arg("-c:v")
-                .arg("libx264")
-                .arg("-preset")
-                .arg("medium")
-                .arg("-crf")
-                .arg("23")
-                .arg("-c:a")
-                .arg("aac")
-                .arg("-b:a")
-                .arg("192k");
+            args.extend_from_slice(&[
+                "-c:v".to_string(),
+                "libx264".to_string(),
+                "-preset".to_string(),
+                "medium".to_string(),
+                "-crf".to_string(),
+                "23".to_string(),
+                "-c:a".to_string(),
+                "aac".to_string(),
+                "-b:a".to_string(),
+                "192k".to_string(),
+            ]);
         }
         _ => {
             // MP4 (default): H.264 video + AAC audio
-            cmd.arg("-c:v")
-                .arg("libx264")
-                .arg("-preset")
-                .arg("medium")
-                .arg("-crf")
-                .arg("23")
-                .arg("-c:a")
-                .arg("aac")
-                .arg("-b:a")
-                .arg("192k");
+            args.extend_from_slice(&[
+                "-c:v".to_string(),
+                "libx264".to_string(),
+                "-preset".to_string(),
+                "medium".to_string(),
+                "-crf".to_string(),
+                "23".to_string(),
+                "-c:a".to_string(),
+                "aac".to_string(),
+                "-b:a".to_string(),
+                "192k".to_string(),
+            ]);
         }
     }
 
-    cmd.arg(&request.output_path);
+    args.push(request.output_path.clone());
 
-    println!("Running FFmpeg command: {:?}", cmd);
+    println!("Running FFmpeg with args: {:?}", args);
 
-    // Execute FFmpeg
-    let output = cmd.output().map_err(|e| format!("Failed to run FFmpeg: {}", e))?;
+    // Use bundled FFmpeg sidecar for export
+    let args_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+    let output = tauri::async_runtime::block_on(async {
+        app.shell()
+            .sidecar("ffmpeg")
+            .map_err(|e| format!("Failed to create FFmpeg sidecar: {}", e))?
+            .args(&args_refs)
+            .output()
+            .await
+            .map_err(|e| format!("Failed to run FFmpeg: {}", e))
+    })?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -381,9 +401,13 @@ fn export_video(request: ExportRequest, clips_data: Vec<VideoMetadata>) -> Resul
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Initialize FFmpeg
+    ffmpeg::init().expect("Failed to initialize FFmpeg");
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![
             greet,
             pick_video_file,

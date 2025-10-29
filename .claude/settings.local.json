@@ -27,7 +27,11 @@
       "mcp__svelte__svelte-autofixer",
       "WebFetch(domain:medium.com)",
       "Bash(ffmpeg:*)",
-      "Bash(otool:*)"
+      "Bash(otool:*)",
+      "WebFetch(domain:v2.tauri.app)",
+      "WebFetch(domain:docs.rs)",
+      "Bash(rustc:*)",
+      "Bash(chmod:*)"
     ],
     "deny": [],
     "ask": []

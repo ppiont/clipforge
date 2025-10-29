@@ -36,27 +36,9 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "resources": [],
     "externalBin": [
       "binaries/ffmpeg",
       "binaries/ffprobe"
-    ],
-    "macOS": {
-      "dmg": {
-        "background": null,
-        "windowSize": {
-          "width": 660,
-          "height": 400
-        },
-        "appPosition": {
-          "x": 180,
-          "y": 170
-        },
-        "applicationFolderPosition": {
-          "x": 480,
-          "y": 170
-        }
-      }
-    }
+    ]
   }
 }
