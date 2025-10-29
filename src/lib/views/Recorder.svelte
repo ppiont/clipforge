@@ -22,22 +22,29 @@
   let error = $state('');
   let selectedSources = $state(['screen', 'webcam']); // Array of selected sources
   let recordingMode = $state('both'); // Derived: 'screen', 'webcam', or 'both'
+  let previousSources = ['screen', 'webcam']; // Track previous selection
 
   // Derive recording mode from selected sources
   $effect(() => {
     const hasScreen = selectedSources.includes('screen');
     const hasWebcam = selectedSources.includes('webcam');
 
+    // Prevent deselecting all sources - restore previous selection
+    if (!hasScreen && !hasWebcam) {
+      selectedSources = previousSources;
+      return;
+    }
+
+    // Update previous sources for next time
+    previousSources = [...selectedSources];
+
+    // Derive recording mode
     if (hasScreen && hasWebcam) {
       recordingMode = 'both';
     } else if (hasScreen) {
       recordingMode = 'screen';
     } else if (hasWebcam) {
       recordingMode = 'webcam';
-    } else {
-      // Default to both if nothing selected
-      selectedSources = ['screen', 'webcam'];
-      recordingMode = 'both';
     }
   });
 
