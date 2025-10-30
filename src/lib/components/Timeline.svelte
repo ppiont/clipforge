@@ -51,6 +51,11 @@
   let clipDragOffsetY = $state(0); // pixels offset for track detection
   let clipDragTargetTrack = $state(null); // target track during drag
 
+  // Snap state - magnetic alignment to other clips
+  const SNAP_THRESHOLD = 0.3; // seconds - snap within 300ms
+  let isSnapping = $state(false);
+  let snapTargetTime = $state(null); // time position of snap line
+
   // Calculate timeline duration: max of timeline clips duration OR currently selected video duration
   let effectiveTimelineDuration = $derived.by(() => {
     let maxDuration = $timelineStore.duration;
@@ -845,7 +850,7 @@
 
       // Calculate new start time
       const deltaTime = deltaX / zoom;
-      finalStartTime = Math.max(0, originalStartTime + deltaTime);
+      let rawStartTime = Math.max(0, originalStartTime + deltaTime);
 
       // Determine target track based on vertical movement
       // If moved up significantly from Track 1, go to Track 0 (and vice versa)
@@ -858,6 +863,44 @@
       } else {
         finalTrack = originalTrack;
         clipDragTargetTrack = originalTrack;
+      }
+
+      // Magnetic snap to other clips on target track
+      const otherClips = $timelineStore.clips.filter(c =>
+        c.id !== clipId && c.track === finalTrack
+      );
+
+      // Build snap points: clip starts and ends
+      const snapPoints = [];
+      for (const otherClip of otherClips) {
+        snapPoints.push(otherClip.startTime); // Snap to start
+        snapPoints.push(otherClip.startTime + otherClip.duration); // Snap to end
+      }
+
+      // Also snap to timeline start (0)
+      snapPoints.push(0);
+
+      // Find closest snap point within threshold
+      let closestSnapPoint = null;
+      let minDistance = SNAP_THRESHOLD;
+
+      for (const snapPoint of snapPoints) {
+        const distance = Math.abs(rawStartTime - snapPoint);
+        if (distance < minDistance) {
+          minDistance = distance;
+          closestSnapPoint = snapPoint;
+        }
+      }
+
+      // Apply snap if found
+      if (closestSnapPoint !== null) {
+        finalStartTime = closestSnapPoint;
+        isSnapping = true;
+        snapTargetTime = closestSnapPoint;
+      } else {
+        finalStartTime = rawStartTime;
+        isSnapping = false;
+        snapTargetTime = null;
       }
 
       // Update playhead to show current position
@@ -878,6 +921,10 @@
       clipDragOffsetX = 0;
       clipDragOffsetY = 0;
       clipDragTargetTrack = null;
+
+      // Clear snap state
+      isSnapping = false;
+      snapTargetTime = null;
 
       // Apply the position changes to the store
       timelineStore.update(state => ({
@@ -977,6 +1024,16 @@
             role="button"
             tabindex="0"
           >
+            <!-- Snap indicator line -->
+            {#if isSnapping && snapTargetTime !== null}
+              <div
+                class="absolute h-full z-40 pointer-events-none"
+                style="left: {snapTargetTime * zoom}px"
+              >
+                <div class="absolute w-1 h-full bg-yellow-400 shadow-lg -translate-x-1/2 animate-pulse"></div>
+              </div>
+            {/if}
+
             <!-- Playhead for Track 1 -->
             {#if $timelineStore.clips.length > 0}
               <div
@@ -1105,6 +1162,16 @@
             role="button"
             tabindex="0"
           >
+            <!-- Snap indicator line -->
+            {#if isSnapping && snapTargetTime !== null}
+              <div
+                class="absolute h-full z-40 pointer-events-none"
+                style="left: {snapTargetTime * zoom}px"
+              >
+                <div class="absolute w-1 h-full bg-yellow-400 shadow-lg -translate-x-1/2 animate-pulse"></div>
+              </div>
+            {/if}
+
             <!-- Playhead for Track 2 -->
             {#if $timelineStore.clips.length > 0}
               <div
