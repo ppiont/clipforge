@@ -1,0 +1,43 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "mcp__GitKraken__git_status",
+      "mcp__GitKraken__git_add_or_commit",
+      "Bash(bun run check:*)",
+      "Bash(cargo clean:*)",
+      "mcp__GitKraken__git_branch",
+      "mcp__GitKraken__git_checkout",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__get-library-docs",
+      "Bash(brew install:*)",
+      "Bash(bun run tauri:*)",
+      "mcp__ide__getDiagnostics",
+      "WebFetch(domain:tauri.app)",
+      "WebSearch",
+      "WebFetch(domain:shadcn-svelte.com)",
+      "Bash(bun run build:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(bun add:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(pkill:*)",
+      "mcp__GitKraken__git_log_or_diff",
+      "Bash(cargo check:*)",
+      "mcp__svelte__svelte-autofixer",
+      "WebFetch(domain:medium.com)",
+      "Bash(ffmpeg:*)",
+      "Bash(otool:*)",
+      "WebFetch(domain:v2.tauri.app)",
+      "WebFetch(domain:docs.rs)",
+      "Bash(rustc:*)",
+      "Bash(chmod:*)",
+      "Bash(git push:*)",
+      "Bash(cargo clippy:*)",
+      "Bash(cargo build:*)",
+      "Bash(bunx shadcn-svelte@latest add:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
