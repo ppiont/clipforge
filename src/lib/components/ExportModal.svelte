@@ -28,6 +28,7 @@
   import { Separator } from "$lib/components/ui/separator";
   import { FileVideoCamera, Monitor, Settings } from "@lucide/svelte";
   import { invoke } from "@tauri-apps/api/core";
+  import { listen } from "@tauri-apps/api/event";
   import { save } from "@tauri-apps/plugin-dialog";
   import { timelineStore } from "../stores/timeline.js";
   import { clipsStore } from "../stores/clips.js";
@@ -89,6 +90,9 @@
       return;
     }
 
+    // Variable to hold the unlisten function
+    let unlisten = null;
+
     try {
       // Show save dialog with appropriate extension
       const outputPath = await save({
@@ -108,6 +112,12 @@
       isExporting = true;
       progress = 0;
       errorMessage = "";
+
+      // Set up progress event listener before starting export
+      unlisten = await listen("export_progress", (event) => {
+        progress = event.payload;
+        console.log("Export progress:", progress);
+      });
 
       // Create a map of clip IDs to their data
       /** @type {Record<string, {filename: string, path: string, duration: number, resolution: string, codec: string}>} */
@@ -156,7 +166,6 @@
         clipsData: clipsData,
       });
 
-      progress = 100;
       console.log("Export successful:", result);
 
       // Close dialog after brief delay
@@ -170,6 +179,11 @@
       errorMessage = err?.toString() || "Export failed";
       isExporting = false;
       progress = 0;
+    } finally {
+      // Clean up event listener
+      if (unlisten) {
+        unlisten();
+      }
     }
   }
 </script>

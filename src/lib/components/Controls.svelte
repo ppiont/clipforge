@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { playbackStore } from '../stores/playback.js';
+  import { timelineStore } from '../stores/timeline.js';
   import { Button } from "$lib/components/ui/button";
   import { Play, Pause, Square, Scissors, Trash2 } from "@lucide/svelte";
 
@@ -12,6 +13,34 @@
   let {
     videoElement = $bindable(null)
   } = $props();
+
+  /**
+   * Check if split operation is available
+   * Split is enabled when:
+   * - A timeline clip is selected
+   * - Playhead is within the selected clip bounds (not at edges)
+   */
+  let canSplit = $derived.by(() => {
+    const selectedId = $playbackStore.selectedTimelineClipId;
+    const playheadTime = $playbackStore.currentTime;
+
+    if (!selectedId) return false;
+
+    const clip = $timelineStore.clips.find(c => c.id === selectedId);
+    if (!clip) return false;
+
+    const clipEnd = clip.startTime + clip.duration;
+
+    // Check if playhead is within clip bounds (with 0.1s margin from edges)
+    return playheadTime > clip.startTime + 0.1 && playheadTime < clipEnd - 0.1;
+  });
+
+  /**
+   * Check if delete operation is available
+   */
+  let canDelete = $derived.by(() => {
+    return $playbackStore.selectedTimelineClipId !== null;
+  });
 
   function togglePlayPause() {
     if (!videoElement) {
@@ -41,6 +70,24 @@
       isPlaying: false,
       currentTime: 0
     }));
+  }
+
+  /**
+   * Handle split clip button click
+   * Dispatches a custom 'split-clip' event to the window
+   */
+  function handleSplitClick() {
+    // Dispatch custom event that Timeline will listen to
+    window.dispatchEvent(new CustomEvent('split-clip'));
+  }
+
+  /**
+   * Handle delete clip button click
+   * Dispatches a custom 'delete-clip' event to the window
+   */
+  function handleDeleteClick() {
+    // Dispatch custom event that Timeline will listen to
+    window.dispatchEvent(new CustomEvent('delete-clip'));
   }
 
   /** @param {KeyboardEvent} e */
@@ -159,9 +206,10 @@
     <Button
       variant="outline"
       size="sm"
-      disabled={true}
-      class="cursor-not-allowed"
-      title="Split clip (Coming soon)"
+      disabled={!canSplit}
+      class={canSplit ? "active:scale-95 transition-transform" : "cursor-not-allowed"}
+      onclick={handleSplitClick}
+      title={canSplit ? "Split clip at playhead (S)" : "Move playhead within a selected clip to split"}
     >
       <Scissors />
       Split
@@ -169,9 +217,10 @@
     <Button
       variant="outline"
       size="sm"
-      disabled={true}
-      class="cursor-not-allowed"
-      title="Delete clip (Coming soon)"
+      disabled={!canDelete}
+      class={canDelete ? "active:scale-95 transition-transform" : "cursor-not-allowed"}
+      onclick={handleDeleteClick}
+      title={canDelete ? "Delete selected clip (Delete/Backspace)" : "Select a clip to delete"}
     >
       <Trash2 />
       Delete

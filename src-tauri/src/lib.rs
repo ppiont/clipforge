@@ -1,7 +1,7 @@
 use ffmpeg_next as ffmpeg;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 use tauri_plugin_shell::ShellExt;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -274,7 +274,7 @@ fn base64_encode(data: &[u8]) -> String {
     result
 }
 
-/// Export video timeline to MP4 using FFmpeg
+/// Export video timeline to MP4 using FFmpeg with progress tracking
 /// For MVP: Simple implementation that handles single clips
 /// TODO: Add multi-clip concatenation and overlay support
 #[tauri::command]
@@ -283,93 +283,139 @@ fn export_video(app: tauri::AppHandle, request: ExportRequest, clips_data: Vec<V
         return Err("No clips to export".to_string());
     }
 
-    // For MVP, export first clip only (simplified)
-    let timeline_clip = &request.clips[0];
+    println!("Exporting {} clips", request.clips.len());
 
-    println!("Exporting clip with path: {}", timeline_clip.clip_id);
+    // Separate clips by track and sort by start time
+    let mut track0_clips: Vec<_> = request.clips.iter().filter(|c| c.track == 0).collect();
+    let mut track1_clips: Vec<_> = request.clips.iter().filter(|c| c.track == 1).collect();
+    track0_clips.sort_by(|a, b| a.start_time.partial_cmp(&b.start_time).unwrap());
+    track1_clips.sort_by(|a, b| a.start_time.partial_cmp(&b.start_time).unwrap());
 
-    // clip_id now contains the actual file path
-    let source_clip = clips_data
-        .iter()
-        .find(|c| c.path == timeline_clip.clip_id)
-        .ok_or_else(|| format!("Source clip not found for path: {}", timeline_clip.clip_id))?;
+    if track0_clips.is_empty() {
+        return Err("No clips on main track (Track 0) to export".to_string());
+    }
 
-    // Determine output resolution
-    let scale_filter = match request.resolution.as_str() {
-        "720p" => Some("scale=1280:720"),
-        "1080p" => Some("scale=1920:1080"),
-        "1440p" => Some("scale=2560:1440"),
-        "4K" => Some("scale=3840:2160"),
-        _ => None, // Source resolution
+    // Calculate total expected duration for progress tracking
+    let expected_duration: f64 = track0_clips.iter()
+        .map(|c| c.trim_end - c.trim_start)
+        .sum();
+
+    // Determine target resolution
+    let (target_width, target_height) = match request.resolution.as_str() {
+        "720p" => (1280, 720),
+        "1080p" => (1920, 1080),
+        "1440p" => (2560, 1440),
+        "4K" => (3840, 2160),
+        _ => (1920, 1080), // Default to 1080p
     };
 
     // Build FFmpeg command arguments
     let mut args: Vec<String> = vec![
-        "-y".to_string(), // Overwrite output file
-        "-i".to_string(),
-        source_clip.path.clone(),
+        "-y".to_string(),
+        "-progress".to_string(),
+        "pipe:2".to_string(),
     ];
 
-    // Add trim if needed
-    if timeline_clip.trim_start > 0.0 || timeline_clip.trim_end < source_clip.duration {
+    // Add all input files with trim parameters
+    let mut input_index = 0;
+    let mut filter_complex = String::new();
+
+    // Add Track 0 inputs and build trim/scale filters
+    for (idx, clip) in track0_clips.iter().enumerate() {
+        let source_clip = clips_data.iter()
+            .find(|c| c.path == clip.clip_id)
+            .ok_or_else(|| format!("Source clip not found: {}", clip.clip_id))?;
+
+        // Add input with seek and duration for faster processing
         args.push("-ss".to_string());
-        args.push(timeline_clip.trim_start.to_string());
-        let trim_duration = timeline_clip.trim_end - timeline_clip.trim_start;
+        args.push(clip.trim_start.to_string());
         args.push("-t".to_string());
-        args.push(trim_duration.to_string());
+        args.push((clip.trim_end - clip.trim_start).to_string());
+        args.push("-i".to_string());
+        args.push(source_clip.path.clone());
+
+        // Build filter: scale to target resolution, set SAR, format
+        filter_complex.push_str(&format!(
+            "[{}:v]scale={}:{}:force_original_aspect_ratio=decrease,pad={}:{}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30[v{}]; ",
+            input_index, target_width, target_height, target_width, target_height, idx
+        ));
+        input_index += 1;
     }
 
-    // Add scale filter if needed
-    if let Some(scale) = scale_filter {
-        args.push("-vf".to_string());
-        args.push(scale.to_string());
+    // Concatenate all Track 0 clips
+    let concat_inputs: String = (0..track0_clips.len())
+        .map(|i| format!("[v{}]", i))
+        .collect::<Vec<_>>()
+        .join("");
+
+    filter_complex.push_str(&format!(
+        "{}concat=n={}:v=1:a=0[outv]",
+        concat_inputs,
+        track0_clips.len()
+    ));
+
+    // If Track 1 has clips, add overlay logic (bottom-left PiP)
+    if !track1_clips.is_empty() {
+        // For now, overlay the first Track 1 clip as PiP in bottom-left
+        let overlay_clip = track1_clips[0];
+        let overlay_source = clips_data.iter()
+            .find(|c| c.path == overlay_clip.clip_id)
+            .ok_or_else(|| format!("Overlay clip not found: {}", overlay_clip.clip_id))?;
+
+        // Add overlay input
+        args.push("-ss".to_string());
+        args.push(overlay_clip.trim_start.to_string());
+        args.push("-t".to_string());
+        args.push((overlay_clip.trim_end - overlay_clip.trim_start).to_string());
+        args.push("-i".to_string());
+        args.push(overlay_source.path.clone());
+
+        // Scale overlay to 320x240 and overlay in bottom-left corner with 20px margin
+        filter_complex.push_str(&format!(
+            "; [{}:v]scale=320:240[overlay]; [outv][overlay]overlay=20:H-h-20[outv]",
+            input_index
+        ));
     }
 
-    // Output settings based on format
+    // Add filter_complex argument
+    args.push("-filter_complex".to_string());
+    args.push(filter_complex);
+
+    // Map the output video
+    args.push("-map".to_string());
+    args.push("[outv]".to_string());
+
+    // For audio, use the first input's audio track
+    args.push("-map".to_string());
+    args.push("0:a?".to_string());
+
+    // Output codec settings
     match request.format.as_str() {
         "webm" => {
-            // WebM: VP9 video + Opus audio
             args.extend_from_slice(&[
-                "-c:v".to_string(),
-                "libvpx-vp9".to_string(),
-                "-crf".to_string(),
-                "30".to_string(), // Quality (0-63, lower = better)
-                "-b:v".to_string(),
-                "0".to_string(), // Use CRF mode
-                "-c:a".to_string(),
-                "libopus".to_string(),
-                "-b:a".to_string(),
-                "128k".to_string(),
+                "-c:v".to_string(), "libvpx-vp9".to_string(),
+                "-crf".to_string(), "30".to_string(),
+                "-b:v".to_string(), "0".to_string(),
+                "-c:a".to_string(), "libopus".to_string(),
+                "-b:a".to_string(), "128k".to_string(),
             ]);
         }
         "mov" => {
-            // MOV: H.264 video + AAC audio (QuickTime compatible)
             args.extend_from_slice(&[
-                "-c:v".to_string(),
-                "libx264".to_string(),
-                "-preset".to_string(),
-                "medium".to_string(),
-                "-crf".to_string(),
-                "23".to_string(),
-                "-c:a".to_string(),
-                "aac".to_string(),
-                "-b:a".to_string(),
-                "192k".to_string(),
+                "-c:v".to_string(), "libx264".to_string(),
+                "-preset".to_string(), "medium".to_string(),
+                "-crf".to_string(), "23".to_string(),
+                "-c:a".to_string(), "aac".to_string(),
+                "-b:a".to_string(), "192k".to_string(),
             ]);
         }
         _ => {
-            // MP4 (default): H.264 video + AAC audio
             args.extend_from_slice(&[
-                "-c:v".to_string(),
-                "libx264".to_string(),
-                "-preset".to_string(),
-                "medium".to_string(),
-                "-crf".to_string(),
-                "23".to_string(),
-                "-c:a".to_string(),
-                "aac".to_string(),
-                "-b:a".to_string(),
-                "192k".to_string(),
+                "-c:v".to_string(), "libx264".to_string(),
+                "-preset".to_string(), "medium".to_string(),
+                "-crf".to_string(), "23".to_string(),
+                "-c:a".to_string(), "aac".to_string(),
+                "-b:a".to_string(), "192k".to_string(),
             ]);
         }
     }
@@ -378,22 +424,108 @@ fn export_video(app: tauri::AppHandle, request: ExportRequest, clips_data: Vec<V
 
     println!("Running FFmpeg with args: {:?}", args);
 
-    // Use bundled FFmpeg sidecar for export
-    let args_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-    let output = tauri::async_runtime::block_on(async {
-        app.shell()
-            .sidecar("ffmpeg")
-            .map_err(|e| format!("Failed to create FFmpeg sidecar: {}", e))?
-            .args(&args_refs)
-            .output()
-            .await
-            .map_err(|e| format!("Failed to run FFmpeg: {}", e))
-    })?;
+    // Use bundled FFmpeg sidecar with real-time progress tracking
+    use std::process::{Command, Stdio};
+    use std::io::{BufRead, BufReader};
+    use std::time::Instant;
 
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("FFmpeg export failed: {}", stderr));
+    // Emit initial progress
+    let _ = app.emit("export_progress", 0u32);
+
+    // Resolve the FFmpeg sidecar path
+    // Use Tauri's target_triple for consistent naming
+    let target_triple = tauri::utils::platform::target_triple()
+        .map_err(|e| format!("Failed to get target triple: {}", e))?;
+
+    let binary_name = if cfg!(target_os = "windows") {
+        format!("ffmpeg-{}.exe", target_triple)
+    } else {
+        format!("ffmpeg-{}", target_triple)
+    };
+
+    let sidecar_path = if cfg!(dev) {
+        // Development: binaries are in src-tauri/binaries/
+        // current_dir() is already at project root or src-tauri, so check both
+        let current = std::env::current_dir()
+            .map_err(|e| format!("Failed to get current dir: {}", e))?;
+
+        // Try src-tauri/binaries first (if we're at project root)
+        let path_from_root = current.join("src-tauri").join("binaries").join(&binary_name);
+        if path_from_root.exists() {
+            println!("Dev mode: Using FFmpeg at: {:?}", path_from_root);
+            path_from_root
+        } else {
+            // Try binaries/ (if we're already in src-tauri/)
+            let path_from_tauri = current.join("binaries").join(&binary_name);
+            println!("Dev mode: Using FFmpeg at: {:?}", path_from_tauri);
+            path_from_tauri
+        }
+    } else {
+        // Production: use bundled sidecar from resources
+        let resource_dir = app.path().resource_dir()
+            .map_err(|e| format!("Failed to get resource dir: {}", e))?;
+
+        let prod_path = resource_dir.join(&binary_name);
+        println!("Production mode: Using FFmpeg at: {:?}", prod_path);
+        prod_path
+    };
+
+    if !sidecar_path.exists() {
+        return Err(format!("FFmpeg binary not found at: {:?}", sidecar_path));
     }
+
+    // Convert args to string references for Command
+    let args_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+
+    // Spawn FFmpeg process with piped stderr for progress tracking
+    let mut child = Command::new(sidecar_path)
+        .args(&args_refs)
+        .stderr(Stdio::piped())
+        .stdout(Stdio::null())
+        .spawn()
+        .map_err(|e| format!("Failed to spawn FFmpeg: {}", e))?;
+
+    // Stream stderr for progress updates
+    if let Some(stderr) = child.stderr.take() {
+        let reader = BufReader::new(stderr);
+        let mut last_emit = Instant::now();
+        let app_clone = app.clone();
+
+        std::thread::spawn(move || {
+            for line in reader.lines() {
+                if let Ok(line) = line {
+                    // Parse FFmpeg progress output: "out_time_ms=1234567"
+                    if line.starts_with("out_time_ms=") {
+                        if let Some(time_str) = line.strip_prefix("out_time_ms=") {
+                            if let Ok(time_us) = time_str.parse::<i64>() {
+                                let current_time = time_us as f64 / 1_000_000.0;
+                                let progress_percent = ((current_time / expected_duration) * 100.0).min(99.0);
+
+                                // Emit progress event every 300ms
+                                if last_emit.elapsed().as_millis() >= 300 {
+                                    let _ = app_clone.emit("export_progress", progress_percent as u32);
+                                    last_emit = Instant::now();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // Wait for process to complete
+    let status = child.wait()
+        .map_err(|e| format!("Failed to wait for FFmpeg: {}", e))?;
+
+    if !status.success() {
+        return Err(format!("FFmpeg export failed with exit code: {:?}", status.code()));
+    }
+
+    // Emit 100% completion
+    let _ = app.emit("export_progress", 100u32);
+
+    println!("Export completed successfully");
 
     Ok(request.output_path)
 }

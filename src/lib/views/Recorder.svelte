@@ -233,10 +233,10 @@
     // Draw screen video to full canvas
     ctx.drawImage(screenVideo, 0, 0, canvas.width, canvas.height);
 
-    // Draw webcam as PiP in bottom-right corner
+    // Draw webcam as PiP in bottom-left corner
     const pipWidth = 320;
     const pipHeight = 240;
-    const pipX = canvas.width - pipWidth - 20;
+    const pipX = 20; // 20px from left edge
     const pipY = canvas.height - pipHeight - 20;
 
     ctx.drawImage(webcamVideo, pipX, pipY, pipWidth, pipHeight);

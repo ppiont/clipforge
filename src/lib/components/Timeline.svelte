@@ -44,6 +44,13 @@
   let trimPreviewOffset = $state(0); // pixels offset from original position
   let isCurrentlyTrimming = $state(false); // disable transitions during drag
 
+  // Clip move drag state - for repositioning clips on timeline
+  let isDraggingClip = $state(false);
+  let draggedClipId = $state(null);
+  let clipDragOffsetX = $state(0); // pixels offset from original position
+  let clipDragOffsetY = $state(0); // pixels offset for track detection
+  let clipDragTargetTrack = $state(null); // target track during drag
+
   // Calculate timeline duration: max of timeline clips duration OR currently selected video duration
   let effectiveTimelineDuration = $derived.by(() => {
     let maxDuration = $timelineStore.duration;
@@ -359,6 +366,14 @@
     if (e.key === 'Delete' || e.key === 'Backspace') {
       e.preventDefault();
       deleteSelectedTimelineClip();
+      return;
+    }
+
+    // S key: Split clip at playhead
+    if (e.key === 's' || e.key === 'S') {
+      e.preventDefault();
+      splitTimelineClip();
+      return;
     }
   }
 
@@ -457,6 +472,31 @@
     };
   });
 
+  // Listen for custom events from Controls component
+  $effect(() => {
+    /**
+     * Handle split clip event from Controls
+     */
+    function handleSplitEvent() {
+      splitTimelineClip();
+    }
+
+    /**
+     * Handle delete clip event from Controls
+     */
+    function handleDeleteEvent() {
+      deleteSelectedTimelineClip();
+    }
+
+    window.addEventListener('split-clip', handleSplitEvent);
+    window.addEventListener('delete-clip', handleDeleteEvent);
+
+    return () => {
+      window.removeEventListener('split-clip', handleSplitEvent);
+      window.removeEventListener('delete-clip', handleDeleteEvent);
+    };
+  });
+
   function zoom_in() {
     zoom = Math.min(zoom + 10, MAX_ZOOM);
   }
@@ -534,6 +574,103 @@
 
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
+  }
+
+  /**
+   * Split timeline clip at playhead position
+   * Creates two clips from the selected clip at the current playhead position
+   */
+  function splitTimelineClip() {
+    const selectedId = $playbackStore.selectedTimelineClipId;
+    const splitTime = $playbackStore.currentTime;
+
+    if (!selectedId) {
+      console.log("No clip selected for split");
+      return;
+    }
+
+    const clip = $timelineStore.clips.find(c => c.id === selectedId);
+    if (!clip) {
+      console.log("Selected clip not found");
+      return;
+    }
+
+    // Validate: playhead must be within clip bounds (not at edges)
+    const clipEnd = clip.startTime + clip.duration;
+    if (splitTime <= clip.startTime || splitTime >= clipEnd) {
+      console.log("Playhead must be within clip bounds to split");
+      return;
+    }
+
+    // Ensure split point is not too close to edges (minimum 0.1s on each side)
+    if (splitTime - clip.startTime < 0.1 || clipEnd - splitTime < 0.1) {
+      console.log("Split point too close to clip edge");
+      return;
+    }
+
+    console.log(`Splitting clip ${selectedId} at ${splitTime}s`);
+
+    // Save state for undo
+    undoManager.saveState();
+
+    // Calculate split points
+    const offsetInClip = splitTime - clip.startTime;
+
+    // Clip 1 (before split)
+    const clip1 = {
+      id: `timeline-clip-${Date.now()}-${Math.random()}`,
+      clipId: clip.clipId,
+      track: clip.track,
+      startTime: clip.startTime,
+      trimStart: clip.trimStart,
+      trimEnd: clip.trimStart + offsetInClip,
+      duration: offsetInClip
+    };
+
+    // Clip 2 (after split)
+    const clip2 = {
+      id: `timeline-clip-${Date.now() + 1}-${Math.random()}`,
+      clipId: clip.clipId,
+      track: clip.track,
+      startTime: splitTime,
+      trimStart: clip.trimStart + offsetInClip,
+      trimEnd: clip.trimEnd,
+      duration: clip.duration - offsetInClip
+    };
+
+    console.log("Split clips:", { clip1, clip2 });
+
+    // Update timeline store: replace original clip with two new clips
+    timelineStore.update(state => {
+      const otherClips = state.clips.filter(c => c.id !== selectedId);
+      return {
+        ...state,
+        clips: [...otherClips, clip1, clip2]
+      };
+    });
+
+    // Recalculate timeline duration
+    let maxDuration = 0;
+    for (const c of $timelineStore.clips) {
+      const clipEnd = c.startTime + c.duration;
+      if (clipEnd > maxDuration) {
+        maxDuration = clipEnd;
+      }
+    }
+
+    timelineStore.update(state => ({
+      ...state,
+      duration: maxDuration
+    }));
+
+    // Select the second clip (after split) and move playhead to its start
+    playbackStore.update(state => ({
+      ...state,
+      selectedTimelineClipId: clip2.id,
+      currentTime: splitTime
+    }));
+
+    updateUndoRedoState();
   }
 
   /**
@@ -662,6 +799,117 @@
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
   }
+
+  /**
+   * Start dragging a clip to move it on the timeline
+   * @param {MouseEvent} e
+   * @param {string} clipId
+   */
+  function startClipDrag(e, clipId) {
+    // Only start drag on left mouse button
+    if (e.button !== 0) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const clip = $timelineStore.clips.find(c => c.id === clipId);
+    if (!clip) return;
+
+    // Save state for undo before starting drag
+    undoManager.saveState();
+
+    // Set active drag state
+    isDraggingClip = true;
+    draggedClipId = clipId;
+    clipDragOffsetX = 0;
+    clipDragOffsetY = 0;
+    clipDragTargetTrack = clip.track;
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const originalStartTime = clip.startTime;
+    const originalTrack = clip.track;
+
+    // Store final values to apply on mouseup
+    let finalStartTime = clip.startTime;
+    let finalTrack = clip.track;
+
+    /** @param {MouseEvent} moveEvent */
+    function handleMouseMove(moveEvent) {
+      const deltaX = moveEvent.clientX - startX;
+      const deltaY = moveEvent.clientY - startY;
+
+      // Update preview offsets
+      clipDragOffsetX = deltaX;
+      clipDragOffsetY = deltaY;
+
+      // Calculate new start time
+      const deltaTime = deltaX / zoom;
+      finalStartTime = Math.max(0, originalStartTime + deltaTime);
+
+      // Determine target track based on vertical movement
+      // If moved up significantly from Track 1, go to Track 0 (and vice versa)
+      if (originalTrack === 0 && deltaY > 50) {
+        finalTrack = 1;
+        clipDragTargetTrack = 1;
+      } else if (originalTrack === 1 && deltaY < -50) {
+        finalTrack = 0;
+        clipDragTargetTrack = 0;
+      } else {
+        finalTrack = originalTrack;
+        clipDragTargetTrack = originalTrack;
+      }
+
+      // Update playhead to show current position
+      playbackStore.update(state => ({
+        ...state,
+        currentTime: finalStartTime,
+        isPlaying: false
+      }));
+    }
+
+    function handleMouseUp() {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+
+      // Clear drag state
+      isDraggingClip = false;
+      draggedClipId = null;
+      clipDragOffsetX = 0;
+      clipDragOffsetY = 0;
+      clipDragTargetTrack = null;
+
+      // Apply the position changes to the store
+      timelineStore.update(state => ({
+        ...state,
+        clips: state.clips.map(c =>
+          c.id === clipId
+            ? {
+                ...c,
+                startTime: finalStartTime,
+                track: finalTrack
+              }
+            : c
+        )
+      }));
+
+      // Recalculate timeline duration
+      const maxDuration = $timelineStore.clips.reduce((max, c) => {
+        const clipEnd = c.startTime + c.duration;
+        return Math.max(max, clipEnd);
+      }, 0);
+
+      timelineStore.update(state => ({
+        ...state,
+        duration: maxDuration
+      }));
+
+      updateUndoRedoState();
+    }
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }
 </script>
 
 <div
@@ -712,7 +960,7 @@
           <div
             bind:this={timelineElement}
             class={`relative cursor-crosshair transition-all ${
-              isDraggingOverTrack1
+              isDraggingOverTrack1 || (isDraggingClip && clipDragTargetTrack === 0)
                 ? 'bg-primary/10 ring-2 ring-primary ring-inset'
                 : 'hover:bg-muted/30'
             }`}
@@ -746,16 +994,17 @@
             {/if}
             {#each getClipsForTrack(0) as timelineClip (timelineClip.id)}
               <div
-                class={`absolute text-primary-foreground text-xs px-2 rounded flex items-center justify-between cursor-pointer select-none overflow-hidden hover:brightness-105 ${
+                class={`absolute text-primary-foreground text-xs px-2 rounded flex items-center justify-between cursor-move select-none overflow-hidden hover:brightness-105 ${
                   $playbackStore.selectedTimelineClipId === timelineClip.id
                     ? 'ring-2 ring-primary shadow-lg brightness-110'
                     : ''
-                } ${activeTrimClipId !== timelineClip.id && !isCurrentlyTrimming ? 'transition-all duration-200 ease-out' : ''}`}
+                } ${draggedClipId === timelineClip.id ? 'ring-4 ring-primary/50 brightness-125 shadow-2xl opacity-80' : ''} ${activeTrimClipId !== timelineClip.id && !isCurrentlyTrimming && !isDraggingClip ? 'transition-all duration-200 ease-out' : ''}`}
                 style="
                   top: 4px;
                   height: {trackHeight - 8}px;
-                  left: {timelineClip.startTime * zoom}px;
+                  left: {timelineClip.startTime * zoom + (draggedClipId === timelineClip.id ? clipDragOffsetX : 0)}px;
                   width: {(timelineClip.trimEnd - timelineClip.trimStart) * zoom}px;
+                  transform: translateY({draggedClipId === timelineClip.id ? clipDragOffsetY : 0}px);
                   {getFilmstripStyle(
                     timelineClip.clipId,
                     timelineClip.trimStart,
@@ -803,7 +1052,13 @@
                   title="Trim start"
                 ></div>
 
-                <span class="truncate text-xs flex-1 px-1 relative z-0">
+                <span
+                  class="truncate text-xs flex-1 px-1 relative z-0 cursor-move"
+                  onmousedown={(e) => startClipDrag(e, timelineClip.id)}
+                  role="button"
+                  tabindex="0"
+                  title="Drag to move clip"
+                >
                   {getClipFilename(timelineClip.clipId)}
                 </span>
 
@@ -833,7 +1088,7 @@
           </div>
           <div
             class={`relative cursor-crosshair transition-all ${
-              isDraggingOverTrack2
+              isDraggingOverTrack2 || (isDraggingClip && clipDragTargetTrack === 1)
                 ? 'bg-primary/10 ring-2 ring-primary ring-inset'
                 : 'hover:bg-muted/30'
             }`}
@@ -867,16 +1122,17 @@
             {/if}
             {#each getClipsForTrack(1) as timelineClip (timelineClip.id)}
               <div
-                class={`absolute text-primary-foreground text-xs px-2 rounded flex items-center justify-between cursor-pointer select-none overflow-hidden hover:brightness-105 ${
+                class={`absolute text-primary-foreground text-xs px-2 rounded flex items-center justify-between cursor-move select-none overflow-hidden hover:brightness-105 ${
                   $playbackStore.selectedTimelineClipId === timelineClip.id
                     ? 'ring-2 ring-primary shadow-lg brightness-110'
                     : ''
-                } ${activeTrimClipId !== timelineClip.id && !isCurrentlyTrimming ? 'transition-all duration-200 ease-out' : ''}`}
+                } ${draggedClipId === timelineClip.id ? 'ring-4 ring-primary/50 brightness-125 shadow-2xl opacity-80' : ''} ${activeTrimClipId !== timelineClip.id && !isCurrentlyTrimming && !isDraggingClip ? 'transition-all duration-200 ease-out' : ''}`}
                 style="
                   top: 4px;
                   height: {trackHeight - 8}px;
-                  left: {timelineClip.startTime * zoom}px;
+                  left: {timelineClip.startTime * zoom + (draggedClipId === timelineClip.id ? clipDragOffsetX : 0)}px;
                   width: {(timelineClip.trimEnd - timelineClip.trimStart) * zoom}px;
+                  transform: translateY({draggedClipId === timelineClip.id ? clipDragOffsetY : 0}px);
                   {getFilmstripStyle(
                     timelineClip.clipId,
                     timelineClip.trimStart,
@@ -924,7 +1180,13 @@
                   title="Trim start"
                 ></div>
 
-                <span class="truncate text-xs flex-1 px-1 relative z-0">
+                <span
+                  class="truncate text-xs flex-1 px-1 relative z-0 cursor-move"
+                  onmousedown={(e) => startClipDrag(e, timelineClip.id)}
+                  role="button"
+                  tabindex="0"
+                  title="Drag to move clip"
+                >
                   {getClipFilename(timelineClip.clipId)}
                 </span>
 
