@@ -13,11 +13,15 @@
   let {
     videoElement = $bindable(null)
   } = $props();
+  let overlayVideoElement = $state(null); // Track 2 overlay video
   let currentTime = $state(0);
   let duration = $state(0);
   let trimStart = $state(0);
   let trimEnd = $state(0);
+  let overlayTrimStart = $state(0);
+  let overlayTrimEnd = $state(0);
   let currentlyPlayingClipId = $state(null);
+  let currentlyPlayingOverlayId = $state(null);
   let syncFrameId = $state(null);
 
   // Get selected clip from media library
@@ -43,9 +47,9 @@
   let activeTimelineClip = $derived.by(() => {
     // If playing from timeline, find clip at playhead position
     if ($timelineStore.clips.length > 0 && $playbackStore.isPlaying) {
-      // Find clip at current playhead position (prioritize track 0, main video)
+      // Find clip at current playhead position (Track 0, main video)
       const clipAtPlayhead = $timelineStore.clips
-        .filter(c => c.track === 0) // Only main track for now
+        .filter(c => c.track === 0)
         .find(c =>
           $playbackStore.currentTime >= c.startTime &&
           $playbackStore.currentTime < c.startTime + c.duration
@@ -56,8 +60,36 @@
       }
     }
 
-    // Fall back to selected timeline clip if available
-    return selectedTimelineClip;
+    // Fall back to selected timeline clip if available (and it's on Track 0)
+    if (selectedTimelineClip && selectedTimelineClip.track === 0) {
+      return selectedTimelineClip;
+    }
+
+    return null;
+  });
+
+  // Find overlay clip (Track 1) at playhead position for PiP display
+  let activeOverlayClip = $derived.by(() => {
+    // If playing from timeline, find overlay clip at playhead position
+    if ($timelineStore.clips.length > 0 && $playbackStore.isPlaying) {
+      const overlayAtPlayhead = $timelineStore.clips
+        .filter(c => c.track === 1)
+        .find(c =>
+          $playbackStore.currentTime >= c.startTime &&
+          $playbackStore.currentTime < c.startTime + c.duration
+        );
+
+      if (overlayAtPlayhead) {
+        return overlayAtPlayhead;
+      }
+    }
+
+    // Fall back to selected timeline clip if it's on Track 1
+    if (selectedTimelineClip && selectedTimelineClip.track === 1) {
+      return selectedTimelineClip;
+    }
+
+    return null;
   });
 
   // Get the source clip from media library for the active timeline clip
@@ -68,9 +100,21 @@
     return selectedClip;
   });
 
-  // Convert file path to Tauri asset URL
+  // Get the source clip for overlay (Track 1)
+  let overlayDisplayClip = $derived.by(() => {
+    if (activeOverlayClip) {
+      return $clipsStore.find(c => c.id === activeOverlayClip.clipId);
+    }
+    return null;
+  });
+
+  // Convert file paths to Tauri asset URLs
   let videoSrc = $derived(
     displayClip ? convertFileSrc(displayClip.path) : ''
+  );
+
+  let overlayVideoSrc = $derived(
+    overlayDisplayClip ? convertFileSrc(overlayDisplayClip.path) : ''
   );
 
   // Update trim range and video time when active clip changes
@@ -103,6 +147,35 @@
       trimStart = 0;
       trimEnd = 0;
       currentlyPlayingClipId = null;
+    }
+  });
+
+  // Update overlay trim range and video time when overlay clip changes
+  $effect(() => {
+    if (activeOverlayClip) {
+      overlayTrimStart = activeOverlayClip.trimStart || 0;
+      overlayTrimEnd = activeOverlayClip.trimEnd || (overlayDisplayClip?.duration ?? 0);
+
+      // Calculate offset within the overlay clip
+      const offsetInTimeline = $playbackStore.currentTime - activeOverlayClip.startTime;
+      const videoTime = overlayTrimStart + offsetInTimeline;
+
+      // Update overlay video element to correct position
+      if (overlayVideoElement && overlayDisplayClip && currentlyPlayingOverlayId !== activeOverlayClip.clipId) {
+        // Source changed, need to reload
+        currentlyPlayingOverlayId = activeOverlayClip.clipId;
+        overlayVideoElement.currentTime = videoTime;
+      } else if (overlayVideoElement) {
+        // Same source, just sync time
+        const timeDiff = Math.abs(overlayVideoElement.currentTime - videoTime);
+        if (timeDiff > 0.1) {
+          overlayVideoElement.currentTime = videoTime;
+        }
+      }
+    } else {
+      overlayTrimStart = 0;
+      overlayTrimEnd = 0;
+      currentlyPlayingOverlayId = null;
     }
   });
 
@@ -206,6 +279,10 @@
       ...state,
       isPlaying: true
     }));
+    // Sync overlay video playback with main video
+    if (overlayVideoElement && activeOverlayClip) {
+      overlayVideoElement.play().catch(err => console.error('Overlay play failed:', err));
+    }
     startSync();
   }
 
@@ -214,12 +291,17 @@
       ...state,
       isPlaying: false
     }));
+    // Pause overlay video when main video pauses
+    if (overlayVideoElement) {
+      overlayVideoElement.pause();
+    }
     stopSync();
   }
 </script>
 
 <div class="relative w-full h-full bg-black rounded overflow-hidden flex items-center justify-center aspect-video">
   {#if displayClip && videoSrc}
+    <!-- Main video (Track 0) -->
     <video
       bind:this={videoElement}
       src={videoSrc}
@@ -233,6 +315,18 @@
     >
       <track kind="captions" />
     </video>
+
+    <!-- Overlay video (Track 1) - PiP in bottom-left -->
+    {#if overlayDisplayClip && overlayVideoSrc}
+      <video
+        bind:this={overlayVideoElement}
+        src={overlayVideoSrc}
+        muted
+        class="absolute bottom-5 left-5 w-80 h-60 object-contain rounded border-2 border-white shadow-2xl pointer-events-none z-10"
+      >
+        <track kind="captions" />
+      </video>
+    {/if}
   {:else}
     <div class="flex flex-col items-center justify-center w-full h-full text-gray-500 text-center">
       <p class="text-sm">No clip selected</p>
